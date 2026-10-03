@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <rect width="200" height="200" fill="#2a1a1a" rx="8"/>
+  <!-- 简化云雷纹 -->
+  <g fill="none" stroke="#6ab0a0" stroke-width="3">
+    <circle cx="65" cy="65" r="20" opacity="0.6"/>
+    <circle cx="65" cy="65" r="10" opacity="0.8"/>
+    <circle cx="135" cy="65" r="20" opacity="0.6"/>
+    <circle cx="135" cy="65" r="10" opacity="0.8"/>
+    <circle cx="65" cy="135" r="20" opacity="0.6"/>
+    <circle cx="65" cy="135" r="10" opacity="0.8"/>
+    <circle cx="135" cy="135" r="20" opacity="0.6"/>
+    <circle cx="135" cy="135" r="10" opacity="0.8"/>
+    <circle cx="100" cy="100" r="15" opacity="0.7"/>
+  </g>
+  <g stroke="#4a8a7a" stroke-width="2" fill="none" opacity="0.5">
+    <path d="M 45 45 L 65 65 M 135 65 L 155 45"/>
+    <path d="M 45 155 L 65 135 M 135 135 L 155 155"/>
+  </g>
+</svg>

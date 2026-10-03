@@ -1,0 +1,128 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Pattern {
+  id              Int         @id @default(autoincrement())
+  name            String
+  alternateName   String?     @map("alternate_name")
+  dynasty         String
+  periodStart     String?     @map("period_start")
+  periodEnd       String?     @map("period_end")
+  region          String?
+  ethnicGroup     String?     @map("ethnic_group")
+  category        String      // 题材分类：动物纹、植物纹、几何纹等
+  medium          String?     // 载体工艺：青铜器、玉器、织锦等
+  description     String?
+  culturalMeaning String?     @map("cultural_meaning")
+  source          String?     // 来源出处
+  sourceUrl       String?     @map("source_url")
+  status          String      @default("draft")  // draft | published | rejected
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  variations Variation[]
+  relationsA Relation[] @relation("pattern_a")
+  relationsB Relation[] @relation("pattern_b")
+  tags       PatternTag[]
+  images     PatternImage[]
+
+  @@map("patterns")
+}
+
+model PatternImage {
+  id         Int      @id @default(autoincrement())
+  patternId  Int      @map("pattern_id")
+  url        String   // 文件路径如 "/patterns/饕餮纹.jpg"
+  type       String   // "bitmap" | "vector"
+  purpose    String?  // "thumbnail" | "detail" | "closeup"
+  label      String?  // 如"正面照"、"局部特写"
+  isPrimary  Boolean  @default(false)  // 是否作为缩略图/主图
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  pattern Pattern @relation(fields: [patternId], references: [id], onDelete: Cascade)
+
+  @@map("pattern_images")
+}
+
+model Variation {
+  id          Int      @id @default(autoincrement())
+  patternId   Int      @map("pattern_id")
+  variantName String   @map("variant_name")
+  dynasty     String
+  region      String?
+  description String?
+  periodStart String?  @map("period_start")
+  periodEnd   String?  @map("period_end")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  pattern Pattern @relation(fields: [patternId], references: [id], onDelete: Cascade)
+  images  VariationImage[]
+
+  @@map("variations")
+}
+
+model VariationImage {
+  id           Int      @id @default(autoincrement())
+  variationId  Int      @map("variation_id")
+  url          String
+  type         String   // "bitmap" | "vector"
+  purpose      String?  // "thumbnail" | "detail"
+  label        String?
+  isPrimary    Boolean  @default(false)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  variation Variation @relation(fields: [variationId], references: [id], onDelete: Cascade)
+
+  @@map("variation_images")
+}
+
+model Relation {
+  id           Int    @id @default(autoincrement())
+  patternAId   Int    @map("pattern_a_id")
+  patternBId   Int    @map("pattern_b_id")
+  relationType String @map("relation_type") // evolves_to | contains | variant_of | influences | same_theme
+  description  String?
+
+  patternA Pattern @relation("pattern_a", fields: [patternAId], references: [id], onDelete: Cascade)
+  patternB Pattern @relation("pattern_b", fields: [patternBId], references: [id], onDelete: Cascade)
+
+  @@map("relations")
+}
+
+model Tag {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+  type String // dynasty | region | ethnic | medium | category
+
+  patterns PatternTag[]
+
+  @@map("tags")
+}
+
+model PatternTag {
+  patternId Int @map("pattern_id")
+  tagId     Int @map("tag_id")
+
+  pattern Pattern @relation(fields: [patternId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([patternId, tagId])
+  @@map("pattern_tags")
+}
+
+model Period {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique // 商、西周、春秋、战国...
+  periodStart Int?     @map("period_start") // 用于排序，如 -1600
+  periodEnd   Int?     @map("period_end")
+  description String?
+
+  @@map("periods")
+}

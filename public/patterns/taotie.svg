@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <rect width="200" height="200" fill="#1a1a2e" rx="8"/>
+  <!-- 对称兽面（饕餮纹风格） -->
+  <!-- 犄角 -->
+  <path d="M 50 40 L 30 10 L 60 30 L 70 15 L 80 35 Z" fill="#c9a84c" stroke="#8b6914" stroke-width="1.5"/>
+  <path d="M 150 40 L 170 10 L 140 30 L 130 15 L 120 35 Z" fill="#c9a84c" stroke="#8b6914" stroke-width="1.5"/>
+  <!-- 眉毛 -->
+  <path d="M 40 70 Q 65 50 100 65" fill="none" stroke="#e8d5a3" stroke-width="4" stroke-linecap="round"/>
+  <path d="M 160 70 Q 135 50 100 65" fill="none" stroke="#e8d5a3" stroke-width="4" stroke-linecap="round"/>
+  <!-- 双目 -->
+  <circle cx="65" cy="90" r="18" fill="#fff" stroke="#e8d5a3" stroke-width="2.5"/>
+  <circle cx="65" cy="90" r="8" fill="#c0392b"/>
+  <circle cx="65" cy="90" r="4" fill="#1a1a2e"/>
+  <circle cx="135" cy="90" r="18" fill="#fff" stroke="#e8d5a3" stroke-width="2.5"/>
+  <circle cx="135" cy="90" r="8" fill="#c0392b"/>
+  <circle cx="135" cy="90" r="4" fill="#1a1a2e"/>
+  <!-- 鼻梁 -->
+  <path d="M 95 80 L 100 70 L 105 80 L 100 110 Z" fill="#c9a84c" opacity="0.6"/>
+  <!-- 鼻孔 -->
+  <ellipse cx="90" cy="115" rx="6" ry="4" fill="#8b6914"/>
+  <ellipse cx="110" cy="115" rx="6" ry="4" fill="#8b6914"/>
+  <!-- 巨口 -->
+  <path d="M 45 140 Q 100 175 155 140" fill="none" stroke="#e8d5a3" stroke-width="3"/>
+  <path d="M 60 145 Q 100 165 140 145" fill="none" stroke="#e8d5a3" stroke-width="2"/>
+  <!-- 獠牙 -->
+  <path d="M 55 138 L 50 155 L 62 145 Z" fill="#f5f5dc"/>
+  <path d="M 145 138 L 150 155 L 138 145 Z" fill="#f5f5dc"/>
+</svg>

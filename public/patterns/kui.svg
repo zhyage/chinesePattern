@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <rect width="200" height="200" fill="#1a1a2e" rx="8"/>
+  <!-- 夔龙纹：单足龙形，侧面姿态 -->
+  <g fill="none" stroke="#c0392b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <!-- 龙头 -->
+    <path d="M 40 90 Q 30 60 55 50 Q 75 42 85 55 L 95 50 Q 110 45 105 65 L 95 70"/>
+    <!-- 龙口/下颚 -->
+    <path d="M 55 50 Q 45 65 55 75"/>
+    <!-- 龙眼 -->
+    <circle cx="68" cy="58" r="4" fill="#fff" stroke="none"/>
+    <circle cx="69" cy="58" r="2" fill="#1a1a2e" stroke="none"/>
+    <!-- 龙身（弯曲） -->
+    <path d="M 85 55 C 110 70, 100 100, 120 120 C 140 140, 160 130, 170 110"/>
+    <!-- 卷尾 -->
+    <path d="M 170 110 C 175 100, 170 90, 160 95 C 150 100, 155 110, 165 108"/>
+    <!-- 独足 -->
+    <path d="M 100 95 L 95 130 L 105 130 L 108 95"/>
+    <path d="M 92 130 L 108 130"/>
+  </g>
+  <!-- 云纹地纹 -->
+  <g fill="none" stroke="#4a1a1a" stroke-width="1.5" opacity="0.5">
+    <path d="M 30 40 Q 40 30 50 40 Q 60 50 50 55 Q 40 50 30 40"/>
+    <path d="M 140 160 Q 150 150 160 160 Q 170 170 160 175 Q 150 170 140 160"/>
+  </g>
+</svg>

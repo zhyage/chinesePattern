@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <rect width="200" height="200" fill="#2a1a1a" rx="8"/>
+  <!-- 简化版饕餮纹 -->
+  <g fill="none" stroke="#d4a853" stroke-width="3">
+    <path d="M 60 50 Q 80 30 100 55 Q 120 30 140 50"/>
+    <path d="M 40 80 Q 70 60 100 80 Q 130 60 160 80"/>
+  </g>
+  <circle cx="70" cy="100" r="15" fill="#c0392b" stroke="#d4a853" stroke-width="2"/>
+  <circle cx="73" cy="100" r="5" fill="#1a1a2e" stroke="none"/>
+  <circle cx="130" cy="100" r="15" fill="#c0392b" stroke="#d4a853" stroke-width="2"/>
+  <circle cx="127" cy="100" r="5" fill="#1a1a2e" stroke="none"/>
+  <path d="M 85 120 L 100 140 L 115 120" fill="none" stroke="#d4a853" stroke-width="3"/>
+  <path d="M 50 150 Q 100 170 150 150" fill="none" stroke="#d4a853" stroke-width="2"/>
+</svg>

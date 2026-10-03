@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <rect width="200" height="200" fill="#1a1a2e" rx="8"/>
+  <!-- 蟠螭纹：交缠的螭龙 -->
+  <g fill="none" stroke="#4a90d9" stroke-width="3" stroke-linecap="round">
+    <!-- 螭龙甲 -->
+    <path d="M 60 50 C 40 70, 30 100, 50 120 C 70 140, 100 130, 110 110"/>
+    <path d="M 110 110 C 120 90, 110 70, 100 65"/>
+    <!-- 螭龙甲装饰 -->
+    <circle cx="55" cy="55" r="5" fill="#4a90d9" stroke="none"/>
+    <circle cx="45" cy="90" r="3" fill="#4a90d9" stroke="none" opacity="0.5"/>
+    <!-- 螭龙乙 -->
+    <path d="M 140 60 C 160 80, 165 110, 145 130 C 125 150, 95 140, 85 120"/>
+    <path d="M 85 120 C 75 100, 85 80, 95 75"/>
+    <circle cx="145" cy="65" r="5" fill="#4a90d9" stroke="none"/>
+    <circle cx="155" cy="100" r="3" fill="#4a90d9" stroke="none" opacity="0.5"/>
+    <!-- 交缠连接线 -->
+    <path d="M 100 65 C 95 60, 80 55, 70 60" stroke-width="2" opacity="0.5"/>
+  </g>
+  <!-- 谷纹点缀 -->
+  <g fill="#6ab0ff" opacity="0.3">
+    <circle cx="80" cy="90" r="2.5"/>
+    <circle cx="120" cy="100" r="2.5"/>
+    <circle cx="100" cy="130" r="2.5"/>
+    <circle cx="60" cy="140" r="2"/>
+    <circle cx="140" cy="140" r="2"/>
+    <circle cx="100" cy="50" r="2"/>
+  </g>
+</svg>

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <rect width="200" height="200" fill="#1a1a2e" rx="8"/>
+  <!-- 宝相花纹：对称层叠花卉 -->
+  <!-- 外层花瓣 -->
+  <g fill="#d4a853" stroke="#8b6914" stroke-width="1.5">
+    <path d="M 100 30 Q 80 50 100 80 Q 120 50 100 30 Z" transform="rotate(0 100 100)"/>
+    <path d="M 100 30 Q 80 50 100 80 Q 120 50 100 30 Z" transform="rotate(45 100 100)"/>
+    <path d="M 100 30 Q 80 50 100 80 Q 120 50 100 30 Z" transform="rotate(90 100 100)"/>
+    <path d="M 100 30 Q 80 50 100 80 Q 120 50 100 30 Z" transform="rotate(135 100 100)"/>
+  </g>
+  <!-- 中层花瓣 -->
+  <g fill="#e8c470" stroke="#a07830" stroke-width="1.5">
+    <path d="M 100 55 Q 85 70 100 90 Q 115 70 100 55 Z" transform="rotate(22.5 100 100)"/>
+    <path d="M 100 55 Q 85 70 100 90 Q 115 70 100 55 Z" transform="rotate(67.5 100 100)"/>
+    <path d="M 100 55 Q 85 70 100 90 Q 115 70 100 55 Z" transform="rotate(112.5 100 100)"/>
+    <path d="M 100 55 Q 85 70 100 90 Q 115 70 100 55 Z" transform="rotate(157.5 100 100)"/>
+  </g>
+  <!-- 花蕊 -->
+  <circle cx="100" cy="100" r="15" fill="#c0392b" stroke="#8b1a1a" stroke-width="1.5"/>
+  <circle cx="100" cy="100" r="8" fill="#e8c470"/>
+  <circle cx="100" cy="100" r="3" fill="#c0392b"/>
+  <!-- 莲座点缀 -->
+  <g fill="none" stroke="#a07830" stroke-width="1" opacity="0.5">
+    <path d="M 40 140 Q 70 130 100 140 Q 130 130 160 140"/>
+    <path d="M 50 155 Q 75 145 100 155 Q 125 145 150 155"/>
+  </g>
+</svg>

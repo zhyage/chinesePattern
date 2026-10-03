@@ -1,65 +1,100 @@
-import Image from "next/image";
+import Link from "next/link";
+import { PatternCard } from "@/components/pattern-card";
 
-export default function Home() {
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+
+const dynasties = ["商", "西周", "春秋", "战国", "汉", "唐", "宋", "明", "清"];
+const categories = ["动物纹", "植物纹", "几何纹", "吉祥纹", "自然纹"];
+
+async function getPatterns() {
+  try {
+    const res = await fetch(`${API}/api/patterns?pageSize=6`, { cache: "no-store" });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.data;
+  } catch {
+    return [];
+  }
+}
+
+export default async function HomePage() {
+  const patterns = await getPatterns();
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <div className="max-w-6xl mx-auto px-4 py-8">
+      {/* Hero */}
+      <section className="text-center py-12">
+        <h1 className="text-3xl font-bold tracking-tight mb-3">
+          中国传统纹饰博物馆
+        </h1>
+        <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+          探索千年纹样，了解纹饰背后的文化与历史
+        </p>
+        <Link
+          href="/patterns"
+          className="inline-block px-6 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm hover:opacity-90 transition-opacity"
+        >
+          开始浏览
+        </Link>
+      </section>
+
+      {/* 朝代入口 */}
+      <section className="mb-10">
+        <h2 className="text-sm font-medium text-muted-foreground mb-3">按朝代浏览</h2>
+        <div className="flex flex-wrap gap-2">
+          {dynasties.map((d) => (
+            <Link
+              key={d}
+              href={`/patterns?dynasty=${encodeURIComponent(d)}`}
+              className="px-4 py-1.5 bg-secondary text-secondary-foreground rounded-full text-sm hover:bg-secondary/80 transition-colors"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+              {d}
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {/* 题材入口 */}
+      <section className="mb-12">
+        <h2 className="text-sm font-medium text-muted-foreground mb-3">按题材浏览</h2>
+        <div className="flex flex-wrap gap-2">
+          {categories.map((c) => (
+            <Link
+              key={c}
+              href={`/patterns?category=${encodeURIComponent(c)}`}
+              className="px-4 py-1.5 bg-secondary text-secondary-foreground rounded-full text-sm hover:bg-secondary/80 transition-colors"
             >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+              {c}
+            </Link>
+          ))}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </section>
+
+      {/* 精选纹饰 */}
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold">精选纹饰</h2>
+          <Link href="/patterns" className="text-sm text-muted-foreground hover:text-foreground">
+            查看全部 →
+          </Link>
         </div>
-      </main>
+        {patterns.length === 0 ? (
+          <p className="text-muted-foreground text-sm">暂无纹饰数据</p>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {patterns.map((p: { id: number; name: string; dynasty: string; category: string; thumbnail: string | null }) => (
+              <PatternCard
+                key={p.id}
+                id={p.id}
+                name={p.name}
+                dynasty={p.dynasty}
+                category={p.category}
+                thumbnail={p.thumbnail}
+              />
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
