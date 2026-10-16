@@ -1,3 +1,15 @@
+// 中国传统纹饰 App — 数据模型
+//
+// 核心：一张扁平的 pattern 表 + 六个地位平等的分面维度（多对多）。
+// 没有层级、没有演变关系、没有变种。
+//
+// 为什么：纹饰是长历史中自然演变形成的，无法可靠判定"A 由 B 演化而来"，
+// 也无法可靠判定"两个图形是同一纹样的不同式样还是两个独立纹样"——
+// 这与精确断代是同一类问题。详见 design.md §2.1。
+//
+// ⚠️ 术语：category = 题材（动物纹/几何纹），motif = 母题（云雷纹/连珠纹）。
+//    两者是不同的维度，历史上多次因混用而返工。见 design.md §11。
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -6,145 +18,258 @@ datasource db {
   provider = "sqlite"
 }
 
-model Pattern {
-  id              Int         @id @default(autoincrement())
-  name            String
-  alternateName   String?     @map("alternate_name")
-  /// 可空：粗粒度朝代（商周/唐/汉）可考；精细断代与地域不做，无法准确考证时留空，
-  /// 不编造。留空时前端不显示该行。
-  dynasty         String?
-  /// 精确定年做不了，这两个字段目前全部为空，保留以备将来有可靠资料。
-  periodStart     String?     @map("period_start")
-  periodEnd       String?     @map("period_end")
-  region          String?
-  ethnicGroup     String?     @map("ethnic_group")
-  category        String      // 题材分类：动物纹、植物纹、几何纹等
-  medium          String?     // 载体工艺：青铜器、玉器、织锦等
+// ────────────────────────────────────────────────────────────
+// 六张分面查找表 —— 结构完全相同
+//
+// 它们不只是字典：每个值的说明文字（description / cultural_meaning）
+// 就存在这里。扁平模型下没有"类型记录"，所以类型的说明只能挂在这。
+// ────────────────────────────────────────────────────────────
+
+model Dynasty {
+  id              Int     @id @default(autoincrement())
+  name            String  @unique
   description     String?
-  culturalMeaning String?     @map("cultural_meaning")
-  source          String?     // 来源出处
-  sourceUrl       String?     @map("source_url")
-  status          String      @default("draft")  // draft | published | rejected
-  createdAt       DateTime    @default(now()) @map("created_at")
-  updatedAt       DateTime    @updatedAt @map("updated_at")
+  culturalMeaning String? @map("cultural_meaning")
+  /// 停用：不出现在筛选器的可选列表里，但已有引用不受影响（design.md §5.5）
+  active          Boolean @default(true)
+  patterns        PatternDynasty[]
+  @@map("dynasties")
+}
 
-  /// 层级：parentId 为空 = 顶层条目（出现在浏览页）；非空 = 某个顶层条目的「式样」。
-  ///
-  /// 刻意【不强制两层】—— 没有子项的顶层条目就是普通单形态纹样，行为与加此字段前一致。
-  /// 「类别」不是存储的属性，而是由"有没有子项"决定的行为。
-  ///
-  /// onDelete: Restrict —— 有子项时拒绝删除父条目，不是级联。
-  /// 注意 Restrict 防不住环（A→B→A），环校验必须在写入路径上做，见 admin/patterns 路由。
-  parentId        Int?        @map("parent_id")
-  parent          Pattern?    @relation("PatternHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
-  children        Pattern[]   @relation("PatternHierarchy")
+model Region {
+  id              Int     @id @default(autoincrement())
+  name            String  @unique
+  description     String?
+  culturalMeaning String? @map("cultural_meaning")
+  /// 停用：不出现在筛选器的可选列表里，但已有引用不受影响（design.md §5.5）
+  active          Boolean @default(true)
+  patterns        PatternRegion[]
+  @@map("regions")
+}
 
-  variations Variation[]
-  relationsA Relation[] @relation("pattern_a")
-  relationsB Relation[] @relation("pattern_b")
-  tags       PatternTag[]
-  images     PatternImage[]
+model EthnicGroup {
+  id              Int     @id @default(autoincrement())
+  name            String  @unique
+  description     String?
+  culturalMeaning String? @map("cultural_meaning")
+  /// 停用：不出现在筛选器的可选列表里，但已有引用不受影响（design.md §5.5）
+  active          Boolean @default(true)
+  patterns        PatternEthnicGroup[]
+  @@map("ethnic_groups")
+}
 
+/// 题材：动物纹 / 植物纹 / 几何纹 / 吉祥纹 / 自然纹
+/// 注意这不是"云雷纹"——那是 Motif
+model Category {
+  id              Int     @id @default(autoincrement())
+  name            String  @unique
+  description     String?
+  culturalMeaning String? @map("cultural_meaning")
+  /// 停用：不出现在筛选器的可选列表里，但已有引用不受影响（design.md §5.5）
+  active          Boolean @default(true)
+  patterns        PatternCategory[]
+  @@map("categories")
+}
+
+/// 母题：云雷纹 / 祥云纹 / 连珠纹 / 饕餮纹…
+/// 注意这不是"几何纹"——那是 Category
+model Motif {
+  id              Int     @id @default(autoincrement())
+  name            String  @unique
+  description     String?
+  culturalMeaning String? @map("cultural_meaning")
+  /// 停用：不出现在筛选器的可选列表里，但已有引用不受影响（design.md §5.5）
+  active          Boolean @default(true)
+  patterns        PatternMotif[]
+  @@map("motifs")
+}
+
+/// 载体工艺：青铜器 / 玉器 / 织锦 / 陶瓷…
+model Medium {
+  id              Int     @id @default(autoincrement())
+  name            String  @unique
+  description     String?
+  culturalMeaning String? @map("cultural_meaning")
+  /// 停用：不出现在筛选器的可选列表里，但已有引用不受影响（design.md §5.5）
+  active          Boolean @default(true)
+  patterns        PatternMedium[]
+  @@map("mediums")
+}
+
+// ────────────────────────────────────────────────────────────
+// pattern —— 扁平，无任何上下级字段
+// ────────────────────────────────────────────────────────────
+
+model Pattern {
+  id              Int      @id @default(autoincrement())
+  /// 用户填什么就存什么，系统不做任何拼接，也不解析它
+  name            String
+  description     String?
+  culturalMeaning String?  @map("cultural_meaning")
+  source          String?
+  sourceUrl       String?  @map("source_url")
+  /// draft | published | rejected
+  status          String   @default("draft")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  images       PatternImage[]
+
+  dynasties    PatternDynasty[]
+  regions      PatternRegion[]
+  ethnicGroups PatternEthnicGroup[]
+  categories   PatternCategory[]
+  motifs       PatternMotif[]
+  mediums      PatternMedium[]
+
+  @@index([status])
   @@map("patterns")
 }
 
+// ────────────────────────────────────────────────────────────
+// 六张中间表 —— 结构相同
+//
+// ★ 每张都必须给第二个字段单独建索引，不能只靠联合主键。
+//   联合主键只加速最左列；而分面筛选的主查询方向恰好是反的
+//   （"筛 motif=云雷纹 的所有 pattern"）。40 万行实测：
+//     按 patternId 查 → 走索引 0ms ／ 按 motifId 查 → 全表扫描 18ms
+//   加索引后 0ms，空间代价 +10 字节/行。详见 design.md §4.3
+// ────────────────────────────────────────────────────────────
+
+model PatternDynasty {
+  patternId Int @map("pattern_id")
+  dynastyId Int @map("dynasty_id")
+
+  pattern Pattern @relation(fields: [patternId], references: [id], onDelete: Cascade)
+  dynasty Dynasty @relation(fields: [dynastyId], references: [id], onDelete: Cascade)
+
+  @@id([patternId, dynastyId])
+  @@index([dynastyId])
+  @@map("pattern_dynasties")
+}
+
+model PatternRegion {
+  patternId Int @map("pattern_id")
+  regionId  Int @map("region_id")
+
+  pattern Pattern @relation(fields: [patternId], references: [id], onDelete: Cascade)
+  region  Region  @relation(fields: [regionId], references: [id], onDelete: Cascade)
+
+  @@id([patternId, regionId])
+  @@index([regionId])
+  @@map("pattern_regions")
+}
+
+model PatternEthnicGroup {
+  patternId     Int @map("pattern_id")
+  ethnicGroupId Int @map("ethnic_group_id")
+
+  pattern     Pattern     @relation(fields: [patternId], references: [id], onDelete: Cascade)
+  ethnicGroup EthnicGroup @relation(fields: [ethnicGroupId], references: [id], onDelete: Cascade)
+
+  @@id([patternId, ethnicGroupId])
+  @@index([ethnicGroupId])
+  @@map("pattern_ethnic_groups")
+}
+
+model PatternCategory {
+  patternId  Int @map("pattern_id")
+  categoryId Int @map("category_id")
+
+  pattern  Pattern  @relation(fields: [patternId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([patternId, categoryId])
+  @@index([categoryId])
+  @@map("pattern_categories")
+}
+
+model PatternMotif {
+  patternId Int @map("pattern_id")
+  motifId   Int @map("motif_id")
+
+  pattern Pattern @relation(fields: [patternId], references: [id], onDelete: Cascade)
+  motif   Motif   @relation(fields: [motifId], references: [id], onDelete: Cascade)
+
+  @@id([patternId, motifId])
+  @@index([motifId])
+  @@map("pattern_motifs")
+}
+
+model PatternMedium {
+  patternId Int @map("pattern_id")
+  mediumId  Int @map("medium_id")
+
+  pattern Pattern @relation(fields: [patternId], references: [id], onDelete: Cascade)
+  medium  Medium  @relation(fields: [mediumId], references: [id], onDelete: Cascade)
+
+  @@id([patternId, mediumId])
+  @@index([mediumId])
+  @@map("pattern_mediums")
+}
+
+// ────────────────────────────────────────────────────────────
+// 图片
+//
+// ⚠️ 列名陷阱：isPrimary / sortOrder 没有 @map，库中就是驼峰；
+//    而 pattern_id / created_at 有 @map，是下划线。写裸 SQL 时分清。
+//
+// 图组约定：详情页按下标配对 bitmap[i] + vector[i]（image-viewer.tsx），
+// 没有显式分组字段 —— 所以「位图数与矢量数必须相等」是一条隐性约定。
+// ────────────────────────────────────────────────────────────
+
 model PatternImage {
-  id         Int      @id @default(autoincrement())
-  patternId  Int      @map("pattern_id")
-  url        String   // 文件路径如 "/patterns/饕餮纹.jpg"
-  type       String   // "bitmap" | "vector"
-  purpose    String?  // "thumbnail" | "detail" | "closeup"
-  label      String?  // 如"正面照"、"局部特写"
-  isPrimary  Boolean  @default(false)  // 是否作为缩略图/主图
-  sortOrder  Int      @default(0)
-  createdAt  DateTime @default(now()) @map("created_at")
+  id        Int      @id @default(autoincrement())
+  patternId Int      @map("pattern_id")
+  url       String
+  /// "bitmap" | "vector"
+  type      String
+  /// "thumbnail" | "detail"
+  purpose   String?
+  label     String?
+  /// 主图（用于列表缩略图）。每个 pattern 只应有一张
+  isPrimary Boolean  @default(false)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
 
   pattern Pattern @relation(fields: [patternId], references: [id], onDelete: Cascade)
 
+  @@index([patternId])
   @@map("pattern_images")
 }
 
-/// ⚠️ 休眠模型 —— 当前无任何 UI 使用。
-///
-/// 原设计意图是「同一纹饰在不同时代/地域的演变」，配套的演变时间线页面已删除
-/// （无法为单个纹样做可靠断代，该功能建在编造的数据上）。
-/// 纹样的多形态需求改由 Pattern 的自引用 parentId 承载。
-///
-/// 保留不删是为了避免破坏性操作：variation_images 表零行，variation 表 8 行空壳，
-/// 留着成本为零。若将来能拿到可靠的断代资料，时间线可在此模型上重建。
-model Variation {
-  id          Int      @id @default(autoincrement())
-  patternId   Int      @map("pattern_id")
-  variantName String   @map("variant_name")
-  dynasty     String
-  region      String?
-  description String?
-  periodStart String?  @map("period_start")
-  periodEnd   String?  @map("period_end")
-  createdAt   DateTime @default(now()) @map("created_at")
+// ────────────────────────────────────────────────────────────
+// pending —— 待审暂存区
+//
+// 为什么这里用 JSON 而不是中间表/外键：
+//   pending 存的是【待验证的提案】，不是已验证的事实。
+//   用户建议的新分面值（如"双喜纹"）本来就不在 motif 表里，外键无从谈起。
+//   审核通过的那一刻才建好缺失的查找表行，落成 pattern + 中间表 —— 那时才需要完整性。
+//
+// 图片走暂存目录：上传先落 public/pending/，通过时才移到 public/patterns/。
+// ────────────────────────────────────────────────────────────
 
-  pattern Pattern @relation(fields: [patternId], references: [id], onDelete: Cascade)
-  images  VariationImage[]
+model Pending {
+  id              Int      @id @default(autoincrement())
+  name            String
+  description     String?
+  culturalMeaning String?  @map("cultural_meaning")
+  source          String?
+  sourceUrl       String?  @map("source_url")
 
-  @@map("variations")
-}
+  /// 已选中的分面值 id，形如 {"motif":[3,7],"category":[2]}
+  facets          String   @default("{}")
+  /// 用户建议的新分面值，形如 {"motif":["双喜纹"]}
+  suggestedFacets String   @default("{}") @map("suggested_facets")
+  /// 图片，形如 [{"url":"/pending/xxx.svg","type":"vector"}]
+  images          String   @default("[]")
 
-model VariationImage {
-  id           Int      @id @default(autoincrement())
-  variationId  Int      @map("variation_id")
-  url          String
-  type         String   // "bitmap" | "vector"
-  purpose      String?  // "thumbnail" | "detail"
-  label        String?
-  isPrimary    Boolean  @default(false)
-  sortOrder    Int      @default(0)
-  createdAt    DateTime @default(now()) @map("created_at")
+  /// pending | approved | rejected
+  status     String    @default("pending")
+  reviewNote String?   @map("review_note")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  reviewedAt DateTime? @map("reviewed_at")
 
-  variation Variation @relation(fields: [variationId], references: [id], onDelete: Cascade)
-
-  @@map("variation_images")
-}
-
-model Relation {
-  id           Int    @id @default(autoincrement())
-  patternAId   Int    @map("pattern_a_id")
-  patternBId   Int    @map("pattern_b_id")
-  relationType String @map("relation_type") // evolves_to | contains | variant_of | influences | same_theme
-  description  String?
-
-  patternA Pattern @relation("pattern_a", fields: [patternAId], references: [id], onDelete: Cascade)
-  patternB Pattern @relation("pattern_b", fields: [patternBId], references: [id], onDelete: Cascade)
-
-  @@map("relations")
-}
-
-model Tag {
-  id   Int    @id @default(autoincrement())
-  name String @unique
-  type String // dynasty | region | ethnic | medium | category
-
-  patterns PatternTag[]
-
-  @@map("tags")
-}
-
-model PatternTag {
-  patternId Int @map("pattern_id")
-  tagId     Int @map("tag_id")
-
-  pattern Pattern @relation(fields: [patternId], references: [id], onDelete: Cascade)
-  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
-
-  @@id([patternId, tagId])
-  @@map("pattern_tags")
-}
-
-model Period {
-  id          Int      @id @default(autoincrement())
-  name        String   @unique // 商、西周、春秋、战国...
-  periodStart Int?     @map("period_start") // 用于排序，如 -1600
-  periodEnd   Int?     @map("period_end")
-  description String?
-
-  @@map("periods")
+  @@index([status])
+  @@map("pending")
 }

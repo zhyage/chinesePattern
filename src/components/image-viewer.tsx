@@ -1,6 +1,9 @@
 // 交互组件：多页浏览，每页一套图（位图 + 可选矢量图）
-// 原生 HTML + CSS 控制
+// 缩略切换用原生 HTML + CSS（radio + 兄弟选择器），点图放大用 ImageZoom
 "use client";
+
+import { useState } from "react";
+import { ImageZoom } from "@/components/image-zoom";
 
 interface ImageInfo {
   id: number;
@@ -13,9 +16,16 @@ interface ImageInfo {
 
 interface ImageViewerProps {
   images: ImageInfo[];
+  /** 纹饰名称，给灯箱做无障碍标题用 */
+  name?: string;
 }
 
-export function ImageViewer({ images }: ImageViewerProps) {
+export function ImageViewer({ images, name = "纹饰" }: ImageViewerProps) {
+  // 点开的是哪一页的哪一张。null = 灯箱关着。
+  // 单独存一份而不去读 CSS 的选中态：radio 的 checked 属于 DOM，React 读不到，
+  // 与其做双向同步，不如点哪张就记哪张 —— 行为完全一致，且只有一个真相来源。
+  const [zoomAt, setZoomAt] = useState<{ page: number; kind: "bitmap" | "vector" } | null>(null);
+
   const bitmapImages = images.filter((img) => img.type === "bitmap");
   const vectorImages = images.filter((img) => img.type === "vector");
 
@@ -32,7 +42,7 @@ export function ImageViewer({ images }: ImageViewerProps) {
 
   if (pageCount === 0) {
     return (
-      <div className="aspect-square bg-muted rounded-lg flex items-center justify-center text-muted-foreground text-sm">
+      <div className="flex h-64 items-center justify-center rounded-lg bg-muted text-sm text-muted-foreground">
         暂无图片
       </div>
     );
@@ -78,18 +88,54 @@ export function ImageViewer({ images }: ImageViewerProps) {
         <input key={r} type="radio" name="iv" id={r} className="hidden" defaultChecked={r === defaultRadio} />
       ))}
 
-      {/* Image display */}
+      {/* Image display
+          与老写法的唯一区别：**容器不再锁死正方形**（原来是 aspect-square）。
+          1036×221 的带子塞进正方形只能占中间一条，上下 73% 是灰底；
+          现在框全宽、**高度跟着图走**，带子占 548×156 而不是 548×564。
+
+          ⚠️ 试过让灰底框"收缩包裹成图片大小"（更彻底的贴合），**但那是死路**：
+             框 width:fit-content + 图 max-width:100% 构成循环依赖
+             （图问框多宽，框问图多宽），浏览器判成 0。
+             位图和矢量图都是 SVG —— 而 SVG 在 <img> 里的 width:auto
+             不走"内在尺寸"那套，循环解不开，实测**点矢量图后图片塌成 0×0**。
+             容器查询（100cqw）也救不回来。四种写法实测只有下面这种三种图都活。
+
+          尺寸的三个约束：
+            w-full / h-auto  宽度铺满栏宽，高度按比例
+            max-h-[70vh]     给竖条封顶，免得高到要一直滚
+            object-scale-down 小图**不放大**（contain 会把 180×180 拉到 548×548 糊掉）
+          min-h-48 是给很扁的带子留一点垫子，看着像装裱的卡纸。
+
+          裁切填充（object-cover）留给列表缩略图 —— 网格必须对齐，那里裁切是对的。 */}
       <div className="iv-imgs">
         {pages.map((pg) => (
           <div key={pg.idx}>
             {pg.bmp && (
-              <div className={`iv-img iv-grp-${pg.idx}-bmp aspect-square bg-muted rounded-lg overflow-hidden relative`}>
-                <img src={pg.bmp.url} alt="" className="w-full h-full object-contain" />
+              <div className={`iv-img iv-grp-${pg.idx}-bmp flex w-full items-center justify-center overflow-hidden rounded-lg bg-muted p-2 min-h-48`}>
+                <img
+                  src={pg.bmp.url}
+                  alt=""
+                  data-testid="viewer-image"
+                  data-kind="bitmap"
+                  data-page={pg.idx}
+                  onClick={() => setZoomAt({ page: pg.idx, kind: "bitmap" })}
+                  title="点击放大查看细节"
+                  className="h-auto max-h-[70vh] w-full cursor-zoom-in object-scale-down"
+                />
               </div>
             )}
             {pg.vec && (
-              <div className={`iv-img iv-grp-${pg.idx}-vec aspect-square bg-muted rounded-lg overflow-hidden relative`}>
-                <img src={pg.vec.url} alt="" className="w-full h-full object-contain" />
+              <div className={`iv-img iv-grp-${pg.idx}-vec flex w-full items-center justify-center overflow-hidden rounded-lg bg-muted p-2 min-h-48`}>
+                <img
+                  src={pg.vec.url}
+                  alt=""
+                  data-testid="viewer-image"
+                  data-kind="vector"
+                  data-page={pg.idx}
+                  onClick={() => setZoomAt({ page: pg.idx, kind: "vector" })}
+                  title="点击放大查看细节"
+                  className="h-auto max-h-[70vh] w-full cursor-zoom-in object-scale-down"
+                />
               </div>
             )}
           </div>
@@ -136,6 +182,20 @@ export function ImageViewer({ images }: ImageViewerProps) {
             </div>
           );
         })}
+
+        {/* 点图放大（全屏灯箱） */}
+        {zoomAt ? (
+          <ImageZoom
+            open
+            onOpenChange={(next) => {
+              if (!next) setZoomAt(null);
+            }}
+            initialKind={zoomAt.kind}
+            bitmapUrl={pages[zoomAt.page]?.bmp?.url ?? null}
+            vectorUrl={pages[zoomAt.page]?.vec?.url ?? null}
+            name={name}
+          />
+        ) : null}
       </div>
     </div>
   );

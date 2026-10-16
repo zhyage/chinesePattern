@@ -41,3 +41,25 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# 数据库文件 —— 运行时产物，不该进版本库
+# （历史原因 dev.db 曾被跟踪，用 git rm --cached 解除）
+*.db
+*.db-journal
+# 改 schema 前的备份（dev.db.bak-20261016-071652）—— 末尾是时间戳，
+# 上面那条 *.db 匹配不到
+*.db.bak-*
+
+# 测试产物（测试用独立的库与素材目录，绝不碰 dev.db / public/patterns）
+/coverage
+/test.db
+/test.db-journal
+/.test-public
+
+# Playwright（ET）产物
+/test-results
+/playwright-report
+/blob-report
+/playwright/.cache
+# ET 的隔离构建目录（见 next.config.ts 的 distDir）
+/.next-e2e

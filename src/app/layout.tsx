@@ -30,15 +30,13 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <header className="border-b">
-          <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-6">
+          <div className="max-w-7xl mx-auto px-4 h-14 flex items-center gap-6">
             <Link href="/" className="font-bold text-lg tracking-tight">
               纹饰博物馆
             </Link>
+            {/* 首页与浏览页已合并，「首页 / 浏览纹饰」两个链接指向同一处，删掉一个 */}
             <nav className="flex gap-4 text-sm text-muted-foreground">
               <Link href="/" className="hover:text-foreground transition-colors">
-                首页
-              </Link>
-              <Link href="/patterns" className="hover:text-foreground transition-colors">
                 浏览纹饰
               </Link>
             </nav>
