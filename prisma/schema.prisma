@@ -10,7 +10,10 @@ model Pattern {
   id              Int         @id @default(autoincrement())
   name            String
   alternateName   String?     @map("alternate_name")
-  dynasty         String
+  /// 可空：粗粒度朝代（商周/唐/汉）可考；精细断代与地域不做，无法准确考证时留空，
+  /// 不编造。留空时前端不显示该行。
+  dynasty         String?
+  /// 精确定年做不了，这两个字段目前全部为空，保留以备将来有可靠资料。
   periodStart     String?     @map("period_start")
   periodEnd       String?     @map("period_end")
   region          String?
@@ -24,6 +27,17 @@ model Pattern {
   status          String      @default("draft")  // draft | published | rejected
   createdAt       DateTime    @default(now()) @map("created_at")
   updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  /// 层级：parentId 为空 = 顶层条目（出现在浏览页）；非空 = 某个顶层条目的「式样」。
+  ///
+  /// 刻意【不强制两层】—— 没有子项的顶层条目就是普通单形态纹样，行为与加此字段前一致。
+  /// 「类别」不是存储的属性，而是由"有没有子项"决定的行为。
+  ///
+  /// onDelete: Restrict —— 有子项时拒绝删除父条目，不是级联。
+  /// 注意 Restrict 防不住环（A→B→A），环校验必须在写入路径上做，见 admin/patterns 路由。
+  parentId        Int?        @map("parent_id")
+  parent          Pattern?    @relation("PatternHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children        Pattern[]   @relation("PatternHierarchy")
 
   variations Variation[]
   relationsA Relation[] @relation("pattern_a")
@@ -50,6 +64,14 @@ model PatternImage {
   @@map("pattern_images")
 }
 
+/// ⚠️ 休眠模型 —— 当前无任何 UI 使用。
+///
+/// 原设计意图是「同一纹饰在不同时代/地域的演变」，配套的演变时间线页面已删除
+/// （无法为单个纹样做可靠断代，该功能建在编造的数据上）。
+/// 纹样的多形态需求改由 Pattern 的自引用 parentId 承载。
+///
+/// 保留不删是为了避免破坏性操作：variation_images 表零行，variation 表 8 行空壳，
+/// 留着成本为零。若将来能拿到可靠的断代资料，时间线可在此模型上重建。
 model Variation {
   id          Int      @id @default(autoincrement())
   patternId   Int      @map("pattern_id")

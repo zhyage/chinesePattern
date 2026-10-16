@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ImageViewer } from "@/components/image-viewer";
+import { PatternCard } from "@/components/pattern-card";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -11,6 +12,18 @@ interface ImageInfo {
   purpose: string | null;
   label: string | null;
   isPrimary: boolean;
+}
+
+/** 子项（式样）摘要 */
+interface ChildSummary {
+  id: number;
+  name: string;
+  alternateName: string | null;
+  dynasty: string | null;
+  category: string;
+  medium: string | null;
+  thumbnail: string | null;
+  thumbnailType: string | null;
 }
 
 interface Variation {
@@ -24,7 +37,7 @@ interface Variation {
 
 interface Relation {
   id: number;
-  pattern: { id: number; name: string; dynasty: string; category: string };
+  pattern: { id: number; name: string; dynasty: string | null; category: string };
   relationType: string;
   description: string | null;
 }
@@ -33,7 +46,8 @@ interface DetailData {
   id: number;
   name: string;
   alternateName: string | null;
-  dynasty: string;
+  /** 可空 —— 无法准确考证时留空，不显示该行 */
+  dynasty: string | null;
   periodStart: string | null;
   periodEnd: string | null;
   region: string | null;
@@ -48,6 +62,10 @@ interface DetailData {
   variations: Variation[];
   relations: Relation[];
   tags: { id: number; name: string; type: string }[];
+  /** 子项（式样）。空数组 = 单形态纹样，不渲染「式样」区块 */
+  children: ChildSummary[];
+  /** 父条目，用于面包屑。null = 顶层 */
+  parent: { id: number; name: string } | null;
 }
 
 async function getPattern(id: string): Promise<DetailData | null> {
@@ -79,16 +97,26 @@ export default async function PatternDetailPage({
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6">
-      <Link href="/patterns" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-4">
-        ← 返回浏览
-      </Link>
+      {/* 面包屑：只有式样（有父条目）才显示所属类别 */}
+      {pattern.parent ? (
+        <nav className="flex items-center gap-2 text-sm mb-4">
+          <Link href="/patterns" className="text-muted-foreground hover:text-foreground">浏览</Link>
+          <span className="text-muted-foreground">/</span>
+          <Link href={`/patterns/${pattern.parent.id}`} className="text-primary hover:underline">
+            {pattern.parent.name}
+          </Link>
+          <span className="text-muted-foreground">/</span>
+          <span className="text-muted-foreground">{pattern.name}</span>
+        </nav>
+      ) : (
+        <Link href="/patterns" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-4">
+          ← 返回浏览
+        </Link>
+      )}
 
-      {/* Tabs */}
+      {/* Tabs —— 「演变时间线」已移除：无法为单个纹样做可靠断代，该功能建在编造的数据上 */}
       <div className="flex gap-1 mb-6 border-b">
         <span className="px-4 py-2 text-sm font-medium border-b-2 border-primary">详情</span>
-        <Link href={`/patterns/${pattern.id}/timeline`} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground">
-          演变时间线
-        </Link>
         <Link href={`/patterns/${pattern.id}/relations`} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground">
           关联图谱
         </Link>
@@ -152,33 +180,25 @@ export default async function PatternDetailPage({
         </section>
       )}
 
-      {/* Variations with link */}
-      {pattern.variations.length > 0 && (
+      {/* 式样 —— 原「同一纹样的变种」区块。语义从「时代/地域演变」改为「同一纹样的不同形态」。
+          只有类别（有子项）才渲染；式样自己没有子项，这一块不出现。 */}
+      {pattern.children.length > 0 && (
         <section className="mb-8">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            同一纹样的变种（{pattern.variations.length}）
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+            式样（{pattern.children.length}）
           </h2>
-          <div className="flex gap-4 overflow-x-auto pb-2">
-            {pattern.variations.map((v) => (
-              <div key={v.id} className="shrink-0 w-40 rounded-lg border bg-card overflow-hidden">
-                <div className="aspect-square bg-muted flex items-center justify-center">
-                  {v.images[0] ? (
-                    <img src={v.images[0].url} alt={v.variantName} className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-muted-foreground text-xs">暂无图片</span>
-                  )}
-                </div>
-                <div className="p-2">
-                  <p className="text-xs font-medium truncate">{v.variantName}</p>
-                  <p className="text-xs text-muted-foreground">{v.dynasty}</p>
-                </div>
-              </div>
+          <p className="text-xs text-muted-foreground mb-3">同一纹样的不同形态，各自成条</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {pattern.children.map((c) => (
+              <PatternCard
+                key={c.id}
+                id={c.id}
+                name={c.name}
+                dynasty={c.dynasty}
+                category={c.category}
+                thumbnail={c.thumbnail}
+              />
             ))}
-          </div>
-          <div className="mt-3">
-            <Link href={`/patterns/${pattern.id}/timeline`} className="text-xs text-primary hover:underline">
-              查看完整时间线 →
-            </Link>
           </div>
         </section>
       )}
@@ -197,7 +217,8 @@ export default async function PatternDetailPage({
                   {relationTypeLabels[r.relationType] || r.relationType}
                 </span>
                 <span className="text-xs text-muted-foreground ml-auto">
-                  {r.pattern.dynasty} · {r.pattern.category}
+                  {r.pattern.dynasty ? `${r.pattern.dynasty} · ` : ""}
+                  {r.pattern.category}
                 </span>
               </Link>
             ))}

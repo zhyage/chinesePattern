@@ -1,13 +1,16 @@
-import Link from "next/link";
+import { PatternCard, type PatternChildThumb } from "@/components/pattern-card";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
 interface Pattern {
   id: number;
   name: string;
-  dynasty: string;
+  /** 可空：无法准确考证时留空 */
+  dynasty: string | null;
   category: string;
   thumbnail: string | null;
+  childCount: number;
+  childThumbnails: PatternChildThumb[];
 }
 
 async function getPatterns(params: Record<string, string>): Promise<{ data: Pattern[]; total: number }> {
@@ -140,6 +143,7 @@ export default async function PatternsPage({
         {/* Pattern grid */}
         <div className="flex-1">
           <p className="text-sm text-muted-foreground mb-4">共 {total} 个纹饰</p>
+          {/* 用共用组件，不再手写第二份卡片 —— 否则层级封面一改就会两边分叉 */}
           {patterns.length === 0 ? (
             <div className="text-center py-16">
               <p className="text-muted-foreground mb-2">没有找到匹配的纹饰</p>
@@ -148,21 +152,16 @@ export default async function PatternsPage({
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {patterns.map((p) => (
-                <Link key={p.id} href={`/patterns/${p.id}`}
-                  className="rounded-lg border bg-card overflow-hidden hover:shadow-md transition-all group">
-                  <div className="aspect-square bg-muted overflow-hidden">
-                    {p.thumbnail
-                      ? <img src={p.thumbnail} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                      : <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">暂无图片</div>}
-                  </div>
-                  <div className="p-3">
-                    <div className="font-medium text-sm truncate">{p.name}</div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xs bg-secondary text-secondary-foreground px-1.5 py-0.5 rounded">{p.dynasty}</span>
-                      <span className="text-xs text-muted-foreground">{p.category}</span>
-                    </div>
-                  </div>
-                </Link>
+                <PatternCard
+                  key={p.id}
+                  id={p.id}
+                  name={p.name}
+                  dynasty={p.dynasty}
+                  category={p.category}
+                  thumbnail={p.thumbnail}
+                  childCount={p.childCount}
+                  childThumbnails={p.childThumbnails}
+                />
               ))}
             </div>
           )}

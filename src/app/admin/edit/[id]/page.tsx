@@ -28,7 +28,8 @@ async function savePattern(formData: FormData): Promise<void> {
   const body = {
     name,
     alternateName: formData.get("alternateName"),
-    dynasty: formData.get("dynasty") as string,
+    // FormData.get 返回 string | null —— 空字符串统一转成 null，别用 as string 把 null 谎报成字符串
+    dynasty: formData.get("dynasty") || null,
     periodStart: formData.get("periodStart"),
     periodEnd: formData.get("periodEnd"),
     region: formData.get("region"),
@@ -93,9 +94,11 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
                 className="w-full px-3 py-2 border rounded-lg text-sm bg-background" />
             </div>
             <div>
-              <label className="text-sm font-medium">朝代 *</label>
-              <select name="dynasty" defaultValue={(p as Record<string, unknown>).dynasty as string || "商"} required
+              {/* 朝代非必填 —— 粗粒度朝代可考，精细断代不做，拿不准就留空，不编造 */}
+              <label className="text-sm font-medium">朝代</label>
+              <select name="dynasty" defaultValue={(p as Record<string, unknown>).dynasty as string || ""}
                 className="w-full px-3 py-2 border rounded-lg text-sm bg-background">
+                <option value="">未定</option>
                 {dynasties.map((d) => <option key={d}>{d}</option>)}
               </select>
             </div>

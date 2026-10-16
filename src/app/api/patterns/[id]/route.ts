@@ -23,6 +23,21 @@ export async function GET(
       tags: {
         include: { tag: true },
       },
+      // 子项（式样）：有则在详情页渲染「式样」区块。空数组 = 单形态纹样，不渲染该区块。
+      children: {
+        orderBy: { id: "asc" },
+        select: {
+          id: true,
+          name: true,
+          alternateName: true,
+          dynasty: true,
+          category: true,
+          medium: true,
+          images: { where: { isPrimary: true }, take: 1, select: { url: true, type: true } },
+        },
+      },
+      // 父条目：有则在详情页显示面包屑
+      parent: { select: { id: true, name: true } },
     },
   });
 
@@ -103,6 +118,19 @@ export async function GET(
       name: pt.tag.name,
       type: pt.tag.type,
     })),
+    /** 子项（式样）。空数组 = 单形态纹样 */
+    children: pattern.children.map((c) => ({
+      id: c.id,
+      name: c.name,
+      alternateName: c.alternateName,
+      dynasty: c.dynasty,
+      category: c.category,
+      medium: c.medium,
+      thumbnail: c.images[0]?.url ?? null,
+      thumbnailType: c.images[0]?.type ?? null,
+    })),
+    /** 父条目，用于面包屑。null = 顶层 */
+    parent: pattern.parent,
   };
 
   return NextResponse.json(result);

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PatternCard } from "@/components/pattern-card";
+import { PatternCard, type PatternChildThumb } from "@/components/pattern-card";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -82,16 +82,28 @@ export default async function HomePage() {
           <p className="text-muted-foreground text-sm">暂无纹饰数据</p>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {patterns.map((p: { id: number; name: string; dynasty: string; category: string; thumbnail: string | null }) => (
-              <PatternCard
-                key={p.id}
-                id={p.id}
-                name={p.name}
-                dynasty={p.dynasty}
-                category={p.category}
-                thumbnail={p.thumbnail}
-              />
-            ))}
+            {patterns.map(
+              (p: {
+                id: number;
+                name: string;
+                dynasty: string | null;
+                category: string;
+                thumbnail: string | null;
+                childCount: number;
+                childThumbnails: PatternChildThumb[];
+              }) => (
+                <PatternCard
+                  key={p.id}
+                  id={p.id}
+                  name={p.name}
+                  dynasty={p.dynasty}
+                  category={p.category}
+                  thumbnail={p.thumbnail}
+                  childCount={p.childCount}
+                  childThumbnails={p.childThumbnails}
+                />
+              ),
+            )}
           </div>
         )}
       </section>
