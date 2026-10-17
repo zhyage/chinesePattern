@@ -30,6 +30,11 @@ export function ImageViewer({ images, name = "纹饰" }: ImageViewerProps) {
   const vectorImages = images.filter((img) => img.type === "vector");
 
   // Group into pages: page i has bitmapImages[i] + vectorImages[i]
+  //
+  // ⚠️ 这里假设「位图与矢量按下标一一对应」。当前系统强制恰好 1+1
+  // （见 pattern-image-files.ts 的 checkImageCounts），所以只有 1 页，
+  // 下标配对退化成"唯一那张对唯一那张"，天然正确。
+  // **将来允许 N 张时必须重做这段** —— 否则数量不等就会张冠李戴。
   const pageCount = Math.max(bitmapImages.length, vectorImages.length);
   const pages: { bmp: ImageInfo | null; vec: ImageInfo | null; idx: number }[] = [];
   for (let i = 0; i < pageCount; i++) {
@@ -111,7 +116,9 @@ export function ImageViewer({ images, name = "纹饰" }: ImageViewerProps) {
         {pages.map((pg) => (
           <div key={pg.idx}>
             {pg.bmp && (
-              <div className={`iv-img iv-grp-${pg.idx}-bmp flex w-full items-center justify-center overflow-hidden rounded-lg bg-muted p-2 min-h-48`}>
+              /* 棋盘格底：透明区域（SVG 的留白）会露出灰白方格，
+                 不透明的位图完全盖住它，所以对 JPG 没有视觉变化 */
+              <div data-testid="viewer-frame" className={`iv-img iv-grp-${pg.idx}-bmp flex w-full items-center justify-center overflow-hidden rounded-lg bg-checkerboard p-2 min-h-48`}>
                 <img
                   src={pg.bmp.url}
                   alt=""
@@ -125,7 +132,9 @@ export function ImageViewer({ images, name = "纹饰" }: ImageViewerProps) {
               </div>
             )}
             {pg.vec && (
-              <div className={`iv-img iv-grp-${pg.idx}-vec flex w-full items-center justify-center overflow-hidden rounded-lg bg-muted p-2 min-h-48`}>
+              /* 棋盘格底：透明区域（SVG 的留白）会露出灰白方格，
+                 不透明的位图完全盖住它，所以对 JPG 没有视觉变化 */
+              <div data-testid="viewer-frame" className={`iv-img iv-grp-${pg.idx}-vec flex w-full items-center justify-center overflow-hidden rounded-lg bg-checkerboard p-2 min-h-48`}>
                 <img
                   src={pg.vec.url}
                   alt=""

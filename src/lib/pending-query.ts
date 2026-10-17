@@ -67,6 +67,12 @@ export interface PendingDetail {
   /** 分面 id 已解析成名字 —— 光有 id 没法在页面上显示 */
   facets: Record<string, { id: number; name: string }[]>;
   suggestedFacets: Record<string, string[]>;
+  /**
+   * 每个建议值在查找表里的**现状**。
+   * 审核页据此区分「会新建」和「会重新启用（原来已停用）」——
+   * 后者如果不说明，通过之后条目会多出一个"看不见"的分类。
+   */
+  suggestedStatus: Record<string, { name: string; exists: boolean; active: boolean }[]>;
   images: { url: string; type: string }[];
 }
 
@@ -89,6 +95,23 @@ export async function getPendingById(id: number): Promise<PendingDetail | null> 
     })) as { id: number; name: string }[];
   }
 
+  const suggestedFacets = JSON.parse(p.suggestedFacets) as Record<string, string[]>;
+
+  // 建议值在查找表里的现状：通过时是"新建"还是"复用一条已停用的"
+  const suggestedStatus: PendingDetail["suggestedStatus"] = {};
+  for (const f of FACETS) {
+    const names = suggestedFacets[f.key] ?? [];
+    if (!names.length) continue;
+    suggestedStatus[f.key] = [];
+    for (const name of names) {
+      const row = (await facetDelegate(prisma, f.model).findUnique({
+        where: { name },
+        select: { id: true, active: true },
+      })) as { id: number; active: boolean } | null;
+      suggestedStatus[f.key].push({ name, exists: !!row, active: row?.active ?? true });
+    }
+  }
+
   return {
     id: p.id,
     name: p.name,
@@ -101,7 +124,8 @@ export async function getPendingById(id: number): Promise<PendingDetail | null> 
     reviewedAt: p.reviewedAt,
     reviewNote: p.reviewNote,
     facets,
-    suggestedFacets: JSON.parse(p.suggestedFacets) as Record<string, string[]>,
+    suggestedFacets,
+    suggestedStatus,
     images: JSON.parse(p.images) as { url: string; type: string }[],
   };
 }

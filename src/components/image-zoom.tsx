@@ -44,10 +44,26 @@ export function ImageZoom({
 }: ImageZoomProps) {
   const [kind, setKind] = useState<"bitmap" | "vector">(initialKind);
   const [zoom, setZoomState] = useState(1);
-  const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
+  /** 0 / 90 / 180 / 270 */
+  const [rotation, setRotation] = useState(0);
   const [dragging, setDragging] = useState(false);
 
-  const imgRef = useRef<HTMLImageElement | null>(null);
+  /**
+   * 原始尺寸按 URL 缓存。
+   *
+   * 上色时元素**不是 `<img>`**（见下面 mask 的用法），拿不到 naturalWidth；
+   * 而且从矢量图切到位图再切回来时，也需要立刻知道矢量图的尺寸。
+   */
+  const [naturals, setNaturals] = useState<Record<string, { w: number; h: number }>>({});
+
+  /** 画布底色：`"checkerboard"`（默认）或一个纯色。 */
+  const [backdrop, setBackdrop] = useState<string>("checkerboard");
+  /** 矢量图的填充色；null = 保持 SVG 原样。只对 vector 生效。 */
+  const [shapeColor, setShapeColor] = useState<string | null>(null);
+
+  // 可能是 <img>，也可能是上色用的 mask <div> —— 两者共用这个 ref，
+  // 因为「保持视野中心」只关心元素在屏幕上的盒子。
+  const imgRef = useRef<HTMLElement | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const drag = useRef<{ x: number; y: number; sl: number; st: number } | null>(null);
   const moved = useRef(false);
@@ -69,13 +85,17 @@ export function ImageZoom({
     (next: number) => {
       const body = bodyRef.current;
       const img = imgRef.current;
-      if (!body || !img || !img.width) {
+      if (!body || !img) {
         applyZoom(next);
         return;
       }
 
       const br = body.getBoundingClientRect();
       const ir = img.getBoundingClientRect();
+      if (!ir.width || !ir.height) {
+        applyZoom(next);
+        return;
+      }
       const fx = (br.left + body.clientWidth / 2 - ir.left) / ir.width;
       const fy = (br.top + body.clientHeight / 2 - ir.top) / ir.height;
 
@@ -95,31 +115,56 @@ export function ImageZoom({
   );
 
   const url = kind === "vector" ? vectorUrl : bitmapUrl;
+  const natural = url ? (naturals[url] ?? null) : null;
 
-  // 打开时回到点进来的那张
+  // 打开时回到点进来的那张。底色 / 图形色**不记忆**，每次打开都重置。
   useEffect(() => {
     if (open) {
       setKind(initialKind);
-      setNatural(null);
       applyZoom(1);
+      setRotation(0);
+      setBackdrop("checkerboard");
+      setShapeColor(null);
     }
   }, [open, initialKind, applyZoom]);
+
+  /** 记下每张图的原始尺寸 —— 上色时用的是 mask，没有 naturalWidth 可读。 */
+  function onImgLoad(e: React.SyntheticEvent<HTMLImageElement>) {
+    const el = e.currentTarget;
+    if (!el.naturalWidth || !el.naturalHeight) return;
+    const key = el.getAttribute("src") ?? el.src;
+    setNaturals((m) => ({ ...m, [key]: { w: el.naturalWidth, h: el.naturalHeight } }));
+  }
+
+  /**
+   * 旋转 90° / 270° 时宽高互换 —— 必须换，不能只靠 `transform`。
+   *
+   * `transform: rotate()` **不改变布局盒**：图转了 90°，视觉上是 274×1074，
+   * 但它在布局里仍占 1074×274 —— 容器的滚动区域按后者算，
+   * 于是**转出来的那一截永远滚不到**。所以下面用一个按旋转后尺寸撑开的包裹盒。
+   */
+  const rot = ((rotation % 360) + 360) % 360;
+  const swapped = rot === 90 || rot === 270;
+  const fitW = natural ? (swapped ? natural.h : natural.w) : 0;
+  const fitH = natural ? (swapped ? natural.w : natural.h) : 0;
+
+  /**
+   * 是否用 mask 重新上色 —— **只对矢量图**。
+   * 位图没有「形状」可言，上色只会把整张图涂成一块，所以不提供。
+   */
+  const recolor = kind === "vector" && !!shapeColor && !!url;
 
   /**
    * 可用区域按 **视口** 算，不量滚动容器。
    * 量容器会形成回路：图放大 → 出现滚动条 → 容器变窄 → 重算"适应" → 图缩小 → …
+   *
+   * 旋转后自动重新适应：旋转是"换个方向看全貌"的动作，停在原来的倍率
+   * 很可能让图整个超出视口。代价是丢掉放大倍率（再点一次即可）。
    */
   const applyFit = useCallback(() => {
     if (!natural) return;
-    applyZoom(
-      fitZoom(
-        window.innerWidth - PAD * 2,
-        window.innerHeight - TOOLBAR - PAD * 2,
-        natural.w,
-        natural.h,
-      ),
-    );
-  }, [natural, applyZoom]);
+    applyZoom(fitZoom(window.innerWidth - PAD * 2, window.innerHeight - TOOLBAR - PAD * 2, fitW, fitH));
+  }, [natural, fitW, fitH, applyZoom]);
 
   useEffect(() => {
     if (!open || !natural) return;
@@ -222,7 +267,97 @@ export function ImageZoom({
               </div>
             ) : null}
 
+            {/* 画布底色 / 矢量图填充色。都不记忆，关掉灯箱即回到默认。 */}
+            <div className="flex shrink-0 items-center gap-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                aria-pressed={backdrop === "checkerboard"}
+                data-testid="bg-checkerboard"
+                onClick={() => setBackdrop("checkerboard")}
+                className={cn(
+                  "text-white hover:bg-white/15 hover:text-white",
+                  backdrop === "checkerboard" && "bg-white/20",
+                )}
+              >
+                棋盘格
+              </Button>
+              <label className="flex items-center gap-1 text-xs text-white/80">
+                背景
+                <input
+                  type="color"
+                  aria-label="背景颜色"
+                  data-testid="bg-color"
+                  value={backdrop === "checkerboard" ? "#ffffff" : backdrop}
+                  // 棋盘格状态下取色器显示白色。如果只靠 onChange，用户选白色时
+                  // 值没有变化、事件不会触发 —— 看起来就是"点了没反应"。
+                  // 点开取色器就切到纯色，这样任何颜色（包括白色）都能生效。
+                  onClick={() => {
+                    if (backdrop === "checkerboard") setBackdrop("#ffffff");
+                  }}
+                  onChange={(e) => setBackdrop(e.target.value)}
+                  className="h-6 w-8 cursor-pointer rounded border border-white/30 bg-transparent p-0"
+                />
+              </label>
+
+              {kind === "vector" ? (
+                <>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    aria-pressed={shapeColor === null}
+                    data-testid="fg-original"
+                    onClick={() => setShapeColor(null)}
+                    className={cn(
+                      "text-white hover:bg-white/15 hover:text-white",
+                      shapeColor === null && "bg-white/20",
+                    )}
+                  >
+                    原色
+                  </Button>
+                  <label className="flex items-center gap-1 text-xs text-white/80">
+                    图形
+                    <input
+                      type="color"
+                      aria-label="图形颜色"
+                      data-testid="fg-color"
+                      value={shapeColor ?? "#000000"}
+                      // 同上：原色状态下显示黑色，选黑色不会触发 onChange
+                      onClick={() => {
+                        if (shapeColor === null) setShapeColor("#000000");
+                      }}
+                      onChange={(e) => setShapeColor(e.target.value)}
+                      className="h-6 w-8 cursor-pointer rounded border border-white/30 bg-transparent p-0"
+                    />
+                  </label>
+                </>
+              ) : null}
+            </div>
+
             <div className="ml-auto flex shrink-0 items-center gap-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                aria-label="向左旋转 90 度"
+                data-testid="rotate-left"
+                onClick={() => setRotation((r) => (r + 270) % 360)}
+                className="text-white hover:bg-white/15 hover:text-white"
+              >
+                ↺
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                aria-label="向右旋转 90 度"
+                data-testid="rotate-right"
+                onClick={() => setRotation((r) => (r + 90) % 360)}
+                className="text-white hover:bg-white/15 hover:text-white"
+              >
+                ↻
+              </Button>
+
+              <span className="mx-1 h-5 w-px bg-white/20" />
+
               <Button size="sm" variant="ghost" onClick={applyFit}
                 className="text-white hover:bg-white/15 hover:text-white">
                 适应
@@ -286,32 +421,83 @@ export function ImageZoom({
             className={cn(
               "flex-1 select-none overflow-auto",
               dragging ? "cursor-grabbing" : "cursor-grab",
+              // 棋盘格是默认底色；选了纯色就换成 backgroundColor
+              backdrop === "checkerboard" && "bg-checkerboard",
             )}
+            style={backdrop === "checkerboard" ? undefined : { backgroundColor: backdrop }}
           >
             {url ? (
               // w-max + min-w-full：小图时撑满容器好让 justify-center 居中，
               // 大图时跟着内容长宽，overflow-auto 才有东西可滚
               <div className="flex w-max min-w-full min-h-full items-center justify-center" style={{ padding: PAD }}>
-                <img
-                  ref={imgRef}
-                  src={url}
-                  alt={`${name}（${kind === "bitmap" ? "位图" : "矢量图"}）`}
-                  draggable={false}
-                  data-testid="zoom-image"
-                  data-kind={kind}
-                  data-zoom={zoom}
-                  onLoad={(e) => {
-                    const el = e.currentTarget;
-                    if (el.naturalWidth && el.naturalHeight) {
-                      setNatural({ w: el.naturalWidth, h: el.naturalHeight });
+                {/* 包裹盒按**旋转后**的尺寸撑开。见上面 `swapped` 的注释：
+                    transform 不影响布局盒，不撑开的话转出来的部分永远滚不到。
+                    overflow-hidden 只裁掉"未旋转时溢出的布局盒"，旋转后刚好填满。 */}
+                <div
+                  className="relative flex shrink-0 items-center justify-center overflow-hidden"
+                  style={natural ? { width: Math.round(fitW * zoom), height: Math.round(fitH * zoom) } : undefined}
+                >
+                {recolor && natural ? (
+                  /**
+                   * 换色用的是 **CSS mask**：把 SVG 当成镂空模板，只取它的 alpha 通道，
+                   * 颜色由 background-color 决定。
+                   *   - 不内联 SVG（不引入 XSS 面），也不改文件本身
+                   *   - 代价：多色 SVG 会被压成**单色剪影**（当前素材都是单色描摹）
+                   *   - maskSize 用 100% 100% 而不是 contain：盒子与 viewBox 同比例
+                   */
+                  <div
+                    ref={(el) => {
+                      imgRef.current = el;
+                    }}
+                    role="img"
+                    aria-label={`${name}（矢量图）`}
+                    data-testid="zoom-image"
+                    data-kind={kind}
+                    data-zoom={zoom}
+                    data-rotation={rot}
+                    className="max-w-none shrink-0"
+                    style={{
+                      width: Math.round(natural.w * zoom),
+                      height: Math.round(natural.h * zoom),
+                      backgroundColor: shapeColor ?? undefined,
+                      maskImage: `url("${url}")`,
+                      WebkitMaskImage: `url("${url}")`,
+                      maskSize: "100% 100%",
+                      WebkitMaskSize: "100% 100%",
+                      maskRepeat: "no-repeat",
+                      WebkitMaskRepeat: "no-repeat",
+                      maskMode: "alpha",
+                      transform: rot ? `rotate(${rot}deg)` : undefined,
+                    }}
+                  />
+                ) : (
+                  <img
+                    ref={(el) => {
+                      imgRef.current = el;
+                    }}
+                    src={url}
+                    alt={`${name}（${kind === "bitmap" ? "位图" : "矢量图"}）`}
+                    draggable={false}
+                    data-testid="zoom-image"
+                    data-kind={kind}
+                    data-zoom={zoom}
+                    data-rotation={rot}
+                    onLoad={onImgLoad}
+                    // 这两个类都不能省，否则"放大"看起来就是没反应：
+                    //   max-w-none  Tailwind preflight 给 img 设了 max-width:100%
+                    //   shrink-0     img 是 flex 子项，默认会被压缩回容器宽度
+                    className="max-w-none shrink-0"
+                    style={
+                      natural
+                        ? {
+                            width: Math.round(natural.w * zoom),
+                            transform: rot ? `rotate(${rot}deg)` : undefined,
+                          }
+                        : undefined
                     }
-                  }}
-                  // 这两个类都不能省，否则"放大"看起来就是没反应：
-                  //   max-w-none  Tailwind preflight 给 img 设了 max-width:100%
-                  //   shrink-0     img 是 flex 子项，默认会被压缩回容器宽度
-                  className="max-w-none shrink-0"
-                  style={natural ? { width: Math.round(natural.w * zoom) } : undefined}
-                />
+                  />
+                )}
+                </div>
               </div>
             ) : (
               <div className="flex h-full items-center justify-center text-sm text-white/60">

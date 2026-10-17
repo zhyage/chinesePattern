@@ -128,3 +128,19 @@
     @apply font-sans;
   }
 }
+
+/**
+ * 透明背景的棋盘格（PS / Figma 的惯例）。
+ *
+ * 放在 utilities 层之外，避免被 `bg-*` 工具类覆盖。
+ * 图片本身的不透明区域会盖住它 —— 只有透明区域才看得到，
+ * 所以对 JPG 这类完全不透明的图没有任何视觉影响。
+ */
+.bg-checkerboard {
+  background-color: #fff;
+  background-image:
+    linear-gradient(45deg, #e2e2e2 25%, transparent 25%, transparent 75%, #e2e2e2 75%, #e2e2e2),
+    linear-gradient(45deg, #e2e2e2 25%, transparent 25%, transparent 75%, #e2e2e2 75%, #e2e2e2);
+  background-size: 16px 16px;
+  background-position: 0 0, 8px 8px;
+}

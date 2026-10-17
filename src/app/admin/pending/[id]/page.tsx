@@ -109,7 +109,12 @@ export default async function PendingDetailPage({ params }: { params: Promise<{ 
 
       {!reviewed ? (
         <div className="border-t pt-4">
-          <ReviewActions id={p.id} name={p.name} suggested={p.suggestedFacets} />
+          <ReviewActions
+            id={p.id}
+            name={p.name}
+            suggested={p.suggestedFacets}
+            suggestedStatus={p.suggestedStatus}
+          />
         </div>
       ) : null}
     </div>

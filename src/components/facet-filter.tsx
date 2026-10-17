@@ -83,7 +83,14 @@ export function FacetFilter({ groups, selected, search = "", path = "/" }: Facet
                 const body = (
                   <>
                     <CheckBox checked={checked} />
-                    <span className="flex-1 text-left">{v.name}</span>
+                    <span className="flex-1 text-left">
+                      {v.name}
+                      {/* 停用的值只会以"正被筛选"的身份出现在这里（见 listFacets 的 includeIds），
+                          标出来是为了让人明白：它为什么不在正常列表里 */}
+                      {v.active === false ? (
+                        <span className="ml-1 text-[11px] text-muted-foreground">（已停用）</span>
+                      ) : null}
+                    </span>
                     <span className="text-xs tabular-nums text-muted-foreground">{v.count}</span>
                   </>
                 );

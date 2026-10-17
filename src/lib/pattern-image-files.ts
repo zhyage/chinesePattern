@@ -80,9 +80,35 @@ export async function resolvePatternFile(url: unknown): Promise<string | null> {
 }
 
 /**
+ * 图片数量规则：**恰好一张位图 + 一张矢量图**（design.md §4.4）。
+ *
+ * ⚠️ **这是"1+1"假设的三处落点之一**（另两处：`pattern-editor.tsx` 的两个槽位、
+ * `image-viewer.tsx` 的下标配对）。`pattern_images` 表本身是 1:N，存 N 张毫无问题；
+ * 限制只活在这三处应用层代码里。
+ * 将来要支持多图时，三处必须**一起**改 —— 光放松这里，查看器的下标配对会张冠李戴；
+ * 另外 `isPrimary` 的默认值会让多张图全变主图、`sortOrder` 会全部撞车。
+ *
+ * ⚠️ 三条路径共用这一份 —— 之前「提交待审」只要求"至少各一张"，
+ * 而「审核通过 / 编辑保存」要求"恰好各一张"。于是一条「2 位图 + 1 矢量」
+ * 的提交能**成功入库**，却**永远过不了审核**，而且报错说的是"必须恰好有一张位图"，
+ * 提交者根本不知道问题出在哪。抽成一份就不再有第二个规则。
+ *
+ * 返回 null 表示通过。
+ */
+export function checkImageCounts(images: { type: string }[]): string | null {
+  for (const k of ["bitmap", "vector"] as const) {
+    const n = images.filter((i) => i.type === k).length;
+    if (n !== 1) {
+      return `必须恰好有一张${k === "bitmap" ? "位图" : "矢量图"}，收到 ${n} 张`;
+    }
+  }
+  return null;
+}
+
+/**
  * 校验提交上来的图片列表。
  *
- * 规则（design.md §5.4）：**恰好一张位图 + 一张矢量图，两张都必填。**
+ * 规则（design.md §4.4 / §5.4）：**恰好一张位图 + 一张矢量图，两张都必填。**
  * 只校验、不搬任何东西 —— 任何一项不通过，调用方直接返回 400，磁盘和库都没动过。
  */
 export async function validateImages(
@@ -128,13 +154,8 @@ export async function validateImages(
     });
   }
 
-  for (const k of ["bitmap", "vector"] as const) {
-    const n = images.filter((i) => i.type === k).length;
-    if (n !== 1) {
-      const label = k === "bitmap" ? "位图" : "矢量图";
-      return { ok: false, error: `必须恰好有一张${label}，收到 ${n} 张` };
-    }
-  }
+  const countError = checkImageCounts(images);
+  if (countError) return { ok: false, error: countError };
 
   return { ok: true, images };
 }

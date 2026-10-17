@@ -17,11 +17,14 @@ export function ReviewActions({
   id,
   name,
   suggested,
+  suggestedStatus,
 }: {
   id: number;
   name: string;
   /** 形如 { motif: ["双喜纹"] }，通过时会被建进查找表 */
   suggested: Record<string, string[]>;
+  /** 每个建议值的现状：新建 / 复用已停用的（要重新启用）/ 复用现成的 */
+  suggestedStatus: Record<string, { name: string; exists: boolean; active: boolean }[]>;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<null | "approve" | "reject">(null);
@@ -29,7 +32,11 @@ export function ReviewActions({
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
 
-  const newValues = Object.entries(suggested).flatMap(([k, names]) => names.map((n) => ({ facet: k, name: n })));
+  // 分成三类，因为通过之后的结果完全不同：
+  //   新建 / 重新启用（原来停用了，会变得可见）/ 复用现成的（什么都不会变）
+  const all = Object.entries(suggestedStatus).flatMap(([k, items]) => items.map((i) => ({ facet: k, ...i })));
+  const willCreate = all.filter((i) => !i.exists);
+  const willReactivate = all.filter((i) => i.exists && !i.active);
 
   async function act(action: "approve" | "reject", reviewNote?: string) {
     setBusy(action);
@@ -54,15 +61,23 @@ export function ReviewActions({
 
   return (
     <div className="space-y-3">
-      {newValues.length > 0 ? (
+      {willCreate.length > 0 || willReactivate.length > 0 ? (
         <div
           data-testid="new-values-notice"
           className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"
         >
-          通过会**新建下列查找表行**（重名的会自动复用已有的）：
-          <span className="ml-1 font-medium">
-            {newValues.map((v) => v.name).join("、")}
-          </span>
+          {willCreate.length > 0 ? (
+            <div data-testid="will-create">
+              通过会<strong>新建</strong>下列查找表行：
+              <span className="ml-1 font-medium">{willCreate.map((v) => v.name).join("、")}</span>
+            </div>
+          ) : null}
+          {willReactivate.length > 0 ? (
+            <div data-testid="will-reactivate">
+              通过会<strong>重新启用</strong>下列已停用的查找表行（它们会重新出现在前台筛选器里）：
+              <span className="ml-1 font-medium">{willReactivate.map((v) => v.name).join("、")}</span>
+            </div>
+          ) : null}
         </div>
       ) : null}
 

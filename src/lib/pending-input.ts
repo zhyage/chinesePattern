@@ -1,5 +1,6 @@
 import { FACET_KEYS, parseIds } from "@/lib/facets";
 import { isValidPendingUrl } from "@/lib/pending-images";
+import { checkImageCounts } from "@/lib/pattern-image-files";
 
 /**
  * 待审提交体的规范化与校验。
@@ -7,9 +8,6 @@ import { isValidPendingUrl } from "@/lib/pending-images";
  * **提交（POST）和编辑未决件（PUT）共用这一份** —— 里面含图片 URL 校验，
  * 那是安全边界（见 `pending-images.ts`），绝不能有第二份实现。
  */
-
-const OTHER_FALLBACK_HINT =
-  "位图和矢量图都必须上传"; // design.md §4.4：原型阶段两张都要
 
 export type NormalizeResult =
   | { ok: true; data: PendingWriteData }
@@ -67,9 +65,10 @@ export function normalizePendingInput(body: Record<string, unknown>): NormalizeR
     return { ok: false, error: `图片地址非法：${badUrl.url || "(空)"} —— 必须是 /pending/ 下的图片文件` };
   }
 
-  const hasBitmap = images.some((i) => i.type === "bitmap");
-  const hasVector = images.some((i) => i.type === "vector");
-  if (!hasBitmap || !hasVector) return { ok: false, error: OTHER_FALLBACK_HINT };
+  // ★ 与 approve / PUT 走**同一条**数量规则（见 checkImageCounts 上的注释：
+  //   之前这里只要求"至少各一张"，造出了"提交成功但永远过不了审"的死路）
+  const countError = checkImageCounts(images);
+  if (countError) return { ok: false, error: countError };
 
   return {
     ok: true,

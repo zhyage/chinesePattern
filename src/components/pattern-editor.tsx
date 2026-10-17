@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { OTHER_VALUE } from "@/lib/facets";
 
 /**
  * 纹饰编辑器 —— **三个入口共用同一个组件**（design.md §5.4）。
@@ -45,7 +46,8 @@ interface Props {
   patternId?: number;
 }
 
-const OTHER = "其它";
+// 「其它」= 未分类（design.md §2.4），与同维度的具体值互斥。
+// 常量在 lib 里，避免这个名字散落在各处。
 
 export function PatternEditor({ mode, groups, initial, pendingId, patternId }: Props) {
   const router = useRouter();
@@ -84,10 +86,33 @@ export function PatternEditor({ mode, groups, initial, pendingId, patternId }: P
     values: g.values.filter((v) => v.active || keepIds.has(v.id)),
   }));
 
-  function toggle(key: string, id: number) {
+  /**
+   * 勾选/取消一个分面值。
+   *
+   * **「其它」与同维具体值互斥**（design.md §2.4）：它的语义是"未分类"，
+   * 勾了「苗族」，「未分类」就不再成立。所以：
+   *   勾具体值 → 顺手去掉同维的「其它」
+   *   勾「其它」→ 清空同维其它值
+   * 服务端有一道同样的兜底（`dropOtherIfHasConcrete`），这里是为了让界面立刻自洽。
+   */
+  function toggle(key: string, id: number, name: string) {
     setSelected((prev) => {
       const cur = prev[key] ?? [];
-      const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+      let next: number[];
+
+      if (cur.includes(id)) {
+        next = cur.filter((x) => x !== id);
+      } else if (name === OTHER_VALUE) {
+        next = [id];
+      } else {
+        const otherIds = new Set(
+          (groups.find((g) => g.key === key)?.values ?? [])
+            .filter((v) => v.name === OTHER_VALUE)
+            .map((v) => v.id),
+        );
+        next = [...cur.filter((x) => !otherIds.has(x)), id];
+      }
+
       return { ...prev, [key]: next };
     });
   }
@@ -255,7 +280,7 @@ export function PatternEditor({ mode, groups, initial, pendingId, patternId }: P
 
       <Section title="分面">
         <p className="mb-2 text-xs text-muted-foreground">
-          一个都不选的维度会挂「{OTHER}」。查找表里没有的值，填在下面的输入框里新建。
+          一个都不选的维度会挂「{OTHER_VALUE}」。查找表里没有的值，填在下面的输入框里新建。
         </p>
         {visibleGroups.map((g) => (
           <div key={g.key} data-testid="editor-facet-group" data-facet={g.key} className="border-t py-3 first:border-t-0">
@@ -270,7 +295,7 @@ export function PatternEditor({ mode, groups, initial, pendingId, patternId }: P
                     data-testid="editor-facet-option"
                     data-value-id={v.id}
                     data-checked={on ? "true" : "false"}
-                    onClick={() => toggle(g.key, v.id)}
+                    onClick={() => toggle(g.key, v.id, v.name)}
                     className={cn(
                       "rounded-full border px-2.5 py-1 text-sm transition-colors",
                       on ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted",
@@ -318,6 +343,9 @@ export function PatternEditor({ mode, groups, initial, pendingId, patternId }: P
         <p className="mb-2 text-xs text-muted-foreground">
           两张都必填。只接受上传，**不能填外部 URL** —— 那是一条路径穿越漏洞的入口。
         </p>
+        {/* ⚠️ 两个固定槽位 = "1+1"假设的三处落点之一（另两处：checkImageCounts、
+            image-viewer 的下标配对）。将来支持多图时，这里要改成可增删的图片列表，
+            而且必须和那两处**一起**改。 */}
         <div className="grid gap-4 sm:grid-cols-2">
           <ImageSlot label="位图" kind="bitmap" value={bitmap} onChange={setBitmap} />
           <ImageSlot label="矢量图" kind="vector" value={vector} onChange={setVector} />

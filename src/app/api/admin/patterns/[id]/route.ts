@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { FACETS, parseIds } from "@/lib/facets";
-import { facetDelegate } from "@/lib/facet-delegates";
+import { facetDelegate, getOrCreateOther, dropOtherIfHasConcrete } from "@/lib/facet-delegates";
 import {
   validateImages,
   moveStagedImages,
@@ -166,16 +166,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
         let finalIds = parsedFacets[f.key] ?? [];
         if (!finalIds.length) {
-          // 兜底挂「其它」—— 该维度一个值都没选时
-          const table = (tx as unknown as Record<string, {
-            findUnique: (a: unknown) => Promise<{ id: number } | null>;
-            create: (a: unknown) => Promise<{ id: number }>;
-          }>)[f.model];
-          const other =
-            (await table.findUnique({ where: { name: "其它" }, select: { id: true } })) ??
-            (await table.create({ data: { name: "其它" }, select: { id: true } }));
-          finalIds = [other.id];
+          // 兜底挂「其它」（= 未分类）—— 该维度一个值都没选时
+          finalIds = [await getOrCreateOther(tx, f.model)];
         }
+
+        // 「其它」与同维具体值互斥（design.md §2.4）：
+        // 选了苗族，「未分类」就不再成立。编辑器已经拦住，这里是兜底。
+        finalIds = await dropOtherIfHasConcrete(tx, f.model, finalIds);
 
         await delegate.createMany({
           data: finalIds.map((v) => ({ patternId: id, [f.fk]: v })),

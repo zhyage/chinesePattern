@@ -109,6 +109,26 @@ describe("PUT —— 基本字段与分面", () => {
     expect(links.map((l) => l.motifId)).toEqual([other!.id]);
   });
 
+  it("★ 「其它」与同维具体值互斥 —— 同时提交，只留具体值", async () => {
+    // 「其它」= 未分类（design.md §2.4）。选了苗族，"未分类"就不再成立。
+    // 编辑器已经拦住，这里是服务端兜底（手工调 API 也能到这儿）。
+    const other = await prisma.ethnicGroup.findUnique({ where: { name: "其它" } });
+    const miao = await prisma.ethnicGroup.findUnique({ where: { name: "苗族" } });
+
+    await put(body({ facets: { ethnicGroup: [other!.id, miao!.id] } }));
+
+    const links = await prisma.patternEthnicGroup.findMany({ where: { patternId: id } });
+    expect(links.map((l) => l.ethnicGroupId)).toEqual([miao!.id]);
+  });
+
+  it("只选「其它」时保留它（未分类是合法状态）", async () => {
+    const other = await prisma.ethnicGroup.findUnique({ where: { name: "其它" } });
+    await put(body({ facets: { ethnicGroup: [other!.id] } }));
+
+    const links = await prisma.patternEthnicGroup.findMany({ where: { patternId: id } });
+    expect(links.map((l) => l.ethnicGroupId)).toEqual([other!.id]);
+  });
+
   it("★ 坏的分面 id → 400（以前会撞外键报 500）", async () => {
     const { status, body: b } = await put(body({ facets: { motif: [999999] } }));
     expect(status).toBe(400);

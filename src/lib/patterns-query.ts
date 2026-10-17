@@ -17,6 +17,11 @@ export interface FacetValue {
   name: string;
   description?: string | null;
   culturalMeaning?: string | null;
+  /**
+   * 是否启用。只有"正被筛选的停用值"会以 `false` 出现在列表里
+   * （见 `listFacets` 的 `includeIds`），其余都是 `true`。
+   */
+  active?: boolean;
 }
 
 export type FacetMap = Record<string, FacetValue[]>;
@@ -178,24 +183,35 @@ export interface FacetGroup {
  *    详情页的分面 chip **都不看 `active`** —— 停用一个值不该让已有条目
  *    的链接失效，也不该让它从搜索结果里消失。见 design.md §5.5。
  */
-export async function listFacets(): Promise<FacetGroup[]> {
+export async function listFacets(
+  opts: { includeIds?: Partial<Record<string, number[]>> } = {},
+): Promise<FacetGroup[]> {
   return Promise.all(
     FACETS.map(async (f) => {
       const delegate = (
         prisma as unknown as Record<string, { findMany: (a: unknown) => Promise<unknown[]> }>
       )[f.model];
 
+      const extra = opts.includeIds?.[f.key] ?? [];
+
       const rows = (await delegate.findMany({
-        where: { active: true },
+        // 已停用的值通常不出现在可选列表里。
+        // **但如果它正被筛选**（常见路径：用户从详情页的分面 chip 点进来），
+        // 必须把它带上 —— 否则「已选条件」里会显示成一个**裸 id**，
+        // 侧边栏也找不到这一行，用户既看不懂自己在筛什么，也没法在侧边栏操作它。
+        where: extra.length
+          ? { OR: [{ active: true }, { id: { in: extra } }] }
+          : { active: true },
         orderBy: { id: "asc" },
         select: {
           id: true,
           name: true,
           description: true,
           culturalMeaning: true,
+          active: true,
           _count: { select: { patterns: { where: { pattern: { status: "published" } } } } },
         },
-      })) as Array<FacetValue & { _count: { patterns: number } }>;
+      })) as Array<FacetValue & { active: boolean; _count: { patterns: number } }>;
 
       return {
         key: f.key,
@@ -205,6 +221,7 @@ export async function listFacets(): Promise<FacetGroup[]> {
           name: r.name,
           description: r.description,
           culturalMeaning: r.culturalMeaning,
+          active: r.active,
           count: r._count.patterns,
         })),
       };

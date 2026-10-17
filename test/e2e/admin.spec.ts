@@ -142,6 +142,34 @@ test.describe("查找表维护", () => {
     await expect(page.getByTestId("add-facet-error")).toContainText("已存在");
   });
 
+  test("★ 被停用的值仍在筛选中时：chip 显示名字，侧边栏也带上它", async ({ page }) => {
+    // 这是评审指出的断层，但实际症状比它说的更糟：
+    // chip 的名字来自 listFacets()，而停用值不在那份列表里 → 兜底成**裸 id**。
+    // 用自建的值做测试，避免动到 browse.spec 依赖的真实分类。
+    await page.goto(`${BASE}/facets?facet=motif`);
+    await page.getByTestId("add-facet-input").fill("Z_停用测试");
+    await page.getByTestId("add-facet-submit").click();
+
+    const row = page.locator('[data-testid="facet-row"]').filter({ hasText: "Z_停用测试" }).first();
+    const valueId = await row.getAttribute("data-value-id");
+    await row.getByTestId("facet-toggle").click();
+    await expect(
+      page.locator(`[data-testid="facet-row"][data-value-id="${valueId}"]`),
+    ).toHaveAttribute("data-active", "false");
+
+    // 直接带参数访问 —— 模拟"从详情页的分面 chip 点进来"
+    await page.goto(`/?motif=${valueId}`);
+
+    const chip = page.getByTestId("selected-chip");
+    await expect(chip).toContainText("Z_停用测试");
+    expect((await chip.innerText()).trim(), "chip 不能只剩一个裸数字").not.toBe(String(valueId));
+
+    // 侧边栏也要有这一行，并标出它已停用
+    await expect(
+      page.locator(`a[data-testid="facet-option"][data-facet="motif"][data-value-id="${valueId}"]`),
+    ).toContainText("已停用");
+  });
+
   test("行内编辑：改名与说明", async ({ page }) => {
     await page.goto(`${BASE}/facets?facet=medium`);
 
@@ -199,6 +227,24 @@ test.describe("编辑器", () => {
   test("新建页没有状态控件（状态由流程决定）", async ({ page }) => {
     await page.goto(`${BASE}/edit/new`);
     await expect(page.getByTestId("editor-status")).toHaveCount(0);
+  });
+
+  test("★ 「其它」与具体值互斥（勾一个会自动取消另一个）", async ({ page }) => {
+    await page.goto(`${BASE}/edit/new`);
+    const group = page.locator('[data-testid="editor-facet-group"][data-facet="ethnicGroup"]');
+    const other = group.locator('[data-testid="editor-facet-option"]').filter({ hasText: "其它" }).first();
+    const miao = group.locator('[data-testid="editor-facet-option"]').filter({ hasText: "苗族" }).first();
+
+    await other.click();
+    await expect(other).toHaveAttribute("data-checked", "true");
+
+    await miao.click();
+    await expect(miao).toHaveAttribute("data-checked", "true");
+    await expect(other, "选了具体值，「其它」应自动取消").toHaveAttribute("data-checked", "false");
+
+    await other.click();
+    await expect(other).toHaveAttribute("data-checked", "true");
+    await expect(miao, "选「其它」应清空同维的具体值").toHaveAttribute("data-checked", "false");
   });
 
   test("分面可以勾选/取消，新建值进「建议」区", async ({ page }) => {

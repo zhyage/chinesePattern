@@ -20,6 +20,20 @@ async function firstPatternId(page: Page): Promise<string> {
 /** 当前可见的那张图（两张图都在 DOM 里，靠 CSS 显示其中一张） */
 const visibleImage = (page: Page) => page.locator('[data-testid="viewer-image"]:visible');
 
+/**
+ * 给 `<input type="color">` 设值。
+ * Playwright 的 `fill()` 不支持 color 输入，必须走原生 setter + 事件：
+ * 直接 `input.value = x` 会被 React 的 value tracker 吃掉，onChange 不触发。
+ */
+async function setColor(page: Page, testId: string, color: string) {
+  await page.getByTestId(testId).evaluate((el, value) => {
+    const input = el as HTMLInputElement;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  }, color);
+}
+
 test("图片查看器：默认显示位图，点「矢量图」切过去", async ({ page }) => {
   await page.goto(`/patterns/${await firstPatternId(page)}`);
 
@@ -81,6 +95,15 @@ test("六个分面都渲染出来，且 chip 能点进首页并已筛选", async
     page.locator(`a[data-testid="facet-option"][data-facet="${facet}"][data-value-id="${valueId}"]`),
   ).toHaveAttribute("data-checked", "true");
   await expect(page.getByTestId("result-total")).not.toHaveText("0");
+});
+
+test("详情页图片框用棋盘格底 —— 透明区域才看得出来", async ({ page }) => {
+  await page.goto(`/patterns/${await firstPatternId(page)}`);
+
+  // 不能只断言 class：要确认 CSS 真的生效了（背景图是两条 linear-gradient）
+  const frame = page.locator('[data-testid="viewer-frame"]:visible').first();
+  const bg = await frame.evaluate((el) => getComputedStyle(el).backgroundImage);
+  expect(bg).toContain("linear-gradient");
 });
 
 test.describe("点图放大（灯箱）", () => {
@@ -158,6 +181,54 @@ test.describe("点图放大（灯箱）", () => {
     await expect(level).toHaveText(top);
   });
 
+  test("旋转：右转 90° 后长宽比取倒数，四次回到原位", async ({ page }) => {
+    await openZoom(page);
+    const img = page.getByTestId("zoom-image");
+    const box = () => img.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return { w: r.width, h: r.height };
+    });
+
+    await expect(img).toHaveAttribute("data-rotation", "0");
+    const a = await box();
+    const ratio = a.w / a.h;
+
+    await page.getByTestId("rotate-right").click();
+    await expect(img).toHaveAttribute("data-rotation", "90");
+
+    const b = await box();
+    // 不假设原图是横是竖：转 90° 后长宽比必然取倒数
+    expect(b.w / b.h).toBeCloseTo(1 / ratio, 1);
+
+    // 旋转后会自动重新适应 —— 整张仍在视口内
+    const vp = page.viewportSize()!;
+    expect(Math.min(b.w, b.h)).toBeLessThanOrEqual(Math.min(vp.width, vp.height));
+    expect(Math.max(b.w, b.h)).toBeLessThanOrEqual(Math.max(vp.width, vp.height));
+
+    for (let i = 0; i < 3; i++) await page.getByTestId("rotate-right").click();
+    await expect(img).toHaveAttribute("data-rotation", "0");
+
+    await page.getByTestId("rotate-left").click();
+    await expect(img).toHaveAttribute("data-rotation", "270");
+  });
+
+  test("★ 旋转后放大：滚动区必须覆盖转出来的那一截", async ({ page }) => {
+    // `transform: rotate()` 不改变布局盒。如果只转不撑开包裹盒，
+    // 容器的 scrollWidth/scrollHeight 还按未旋转的尺寸算 —— 转出来的部分永远滚不到。
+    await openZoom(page);
+    await page.getByTestId("rotate-right").click();
+    await page.locator('[data-testid="zoom-preset"][data-zoom="4"]').click();
+
+    const covers = await page.evaluate(() => {
+      const img = document.querySelector('[data-testid="zoom-image"]')!;
+      const box = img.parentElement!;
+      const body = document.querySelector('[data-testid="zoom-body"]')!;
+      const r = box.getBoundingClientRect();
+      return body.scrollWidth + 1 >= r.width && body.scrollHeight + 1 >= r.height;
+    });
+    expect(covers, "有部分内容滚不到 —— 包裹盒没有按旋转后的尺寸撑开").toBe(true);
+  });
+
   test("灯箱里能在位图/矢量之间切换", async ({ page }) => {
     await openZoom(page);
     await expect(page.getByTestId("zoom-image")).toHaveAttribute("data-kind", "bitmap");
@@ -181,6 +252,102 @@ test.describe("点图放大（灯箱）", () => {
       await expect(page.getByTestId("facet-chip").first()).toBeVisible();
     });
   }
+
+  // ── 画布底色 / 矢量图上色 ──────────────────────────────────
+
+  const canvasBgImage = (page: Page) =>
+    page.getByTestId("zoom-body").evaluate((el) => getComputedStyle(el).backgroundImage);
+  const canvasBgColor = (page: Page) =>
+    page.getByTestId("zoom-body").evaluate((el) => getComputedStyle(el).backgroundColor);
+  const zoomTag = (page: Page) => page.getByTestId("zoom-image").evaluate((el) => el.tagName);
+
+  test("画布默认棋盘格；选纯色后棋盘格消失；点「棋盘格」能切回来", async ({ page }) => {
+    await openZoom(page);
+    expect(await canvasBgImage(page)).toContain("linear-gradient");
+
+    await setColor(page, "bg-color", "#ff0000");
+    await expect.poll(() => canvasBgColor(page)).toBe("rgb(255, 0, 0)");
+    await expect.poll(() => canvasBgImage(page)).toBe("none");
+
+    await page.getByTestId("bg-checkerboard").click();
+    await expect.poll(() => canvasBgImage(page)).toContain("linear-gradient");
+  });
+
+  test("★ 棋盘格状态下点背景取色器 → 立刻切成纯色（选白色也有反应）", async ({ page }) => {
+    await openZoom(page);
+    expect(await canvasBgImage(page)).toContain("linear-gradient");
+
+    // 不选任何颜色，只点开取色器：它默认显示的白色也要能生效。
+    // 只靠 onChange 的话，选白色时值没变、事件不触发，看起来就是"点了没反应"。
+    await page.getByTestId("bg-color").click();
+    await expect.poll(() => canvasBgColor(page)).toBe("rgb(255, 255, 255)");
+    await expect.poll(() => canvasBgImage(page)).toBe("none");
+  });
+
+  test("★ 原色状态下点图形取色器 → 立刻进入 mask（选黑色也有反应）", async ({ page }) => {
+    await openZoom(page);
+    await page.locator('[data-testid="zoom-kind"][data-kind="vector"]').click();
+    await expect(page.getByTestId("zoom-image")).toHaveAttribute("data-kind", "vector");
+    expect(await zoomTag(page)).toBe("IMG");
+
+    await page.getByTestId("fg-color").click();
+    await expect.poll(() => zoomTag(page)).toBe("DIV");
+  });
+
+  test("「图形」上色只对矢量图出现", async ({ page }) => {
+    await openZoom(page); // 默认打开的是位图
+    await expect(page.getByTestId("fg-color")).toHaveCount(0);
+
+    await page.locator('[data-testid="zoom-kind"][data-kind="vector"]').click();
+    await expect(page.getByTestId("fg-color")).toBeVisible();
+
+    await page.locator('[data-testid="zoom-kind"][data-kind="bitmap"]').click();
+    await expect(page.getByTestId("fg-color")).toHaveCount(0);
+  });
+
+  test("★ 矢量图换色：用 mask 上色、尺寸不塌、能恢复原色", async ({ page }) => {
+    await openZoom(page);
+    await page.locator('[data-testid="zoom-kind"][data-kind="vector"]').click();
+    await expect(page.getByTestId("zoom-image")).toHaveAttribute("data-kind", "vector");
+    expect(await zoomTag(page)).toBe("IMG");
+
+    await setColor(page, "fg-color", "#00ff00");
+
+    await expect.poll(() => zoomTag(page)).toBe("DIV");
+    await expect
+      .poll(() => page.getByTestId("zoom-image").evaluate((el) => getComputedStyle(el).backgroundColor))
+      .toBe("rgb(0, 255, 0)");
+
+    // mask 指向的就是那张 SVG；颜色来自 backgroundColor，不是改了文件
+    const mask = await page
+      .getByTestId("zoom-image")
+      .evaluate((el) => getComputedStyle(el).maskImage || getComputedStyle(el).webkitMaskImage);
+    expect(mask).toContain(".svg");
+
+    // 换了实现也不能塌成 0×0 —— 钉死"上色后看不见"这类回归
+    const area = await page.getByTestId("zoom-image").evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return r.width * r.height;
+    });
+    expect(area).toBeGreaterThan(0);
+
+    await page.getByTestId("fg-original").click();
+    await expect.poll(() => zoomTag(page)).toBe("IMG");
+  });
+
+  test("关掉重开：底色和图形色都不记忆", async ({ page }) => {
+    await openZoom(page);
+    await setColor(page, "bg-color", "#123456");
+    await expect.poll(() => canvasBgColor(page)).toBe("rgb(18, 52, 86)");
+
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("image-zoom")).toHaveCount(0);
+
+    // 不重新导航，直接再点开 —— 验的是组件重挂载后的默认值
+    await visibleImage(page).click();
+    await expect(page.getByTestId("image-zoom")).toBeVisible();
+    expect(await canvasBgImage(page)).toContain("linear-gradient");
+  });
 });
 
 test("不存在的纹饰返回 404，而不是崩溃", async ({ page }) => {

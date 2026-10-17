@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rm } from "node:fs/promises";
 import prisma from "@/lib/db";
 import { FACETS } from "@/lib/facets";
-import { facetDelegate } from "@/lib/facet-delegates";
+import { facetDelegate, getOrCreateOther, dropOtherIfHasConcrete } from "@/lib/facet-delegates";
 import { validateImages, moveStagedImages } from "@/lib/pattern-image-files";
 import { normalizePendingInput } from "@/lib/pending-input";
 import { getPendingById } from "@/lib/pending-query";
+import { resolvePendingFile } from "@/lib/pending-images";
 
 /**
  * 审核一个待审件。
@@ -21,7 +23,6 @@ import { getPendingById } from "@/lib/pending-query";
  *   ⑥ 标记 pending 为 approved
  */
 
-const OTHER = "其它";
 
 /**
  * 取分面值，不存在就创建。返回 id。
@@ -33,10 +34,22 @@ const OTHER = "其它";
 async function getOrCreateValue(modelKey: string, name: string): Promise<number> {
   const delegate = facetDelegate(prisma, modelKey);
 
-  const existing = (await delegate.findUnique({ where: { name }, select: { id: true } })) as
-    | { id: number }
-    | null;
-  if (existing) return existing.id;
+  const existing = (await delegate.findUnique({
+    where: { name },
+    select: { id: true, active: true },
+  })) as { id: number; active: boolean } | null;
+
+  if (existing) {
+    // ★ 命中一条**已停用**的行时，把它重新启用。
+    //   原来这里直接复用 id 就走 —— 结果是条目挂着一个前台筛选器里看不到的值，
+    //   而且审核页的黄框只说"会新建"，对这条静默复用只字不提。
+    //   语义上也说得通：管理员点了"通过"，就是确认这个值要用。
+    if (!existing.active) {
+      await delegate.update({ where: { id: existing.id }, data: { active: true } });
+    }
+    return existing.id;
+  }
+
   const created = (await delegate.create({ data: { name }, select: { id: true } })) as { id: number };
   return created.id;
 }
@@ -127,6 +140,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         where: { id: pendingId },
         data: { status: "rejected", reviewNote: body.note || null, reviewedAt: new Date() },
       });
+
+      // 清掉暂存文件（design.md §5.4：「驳回 —— 不产生 pattern，清掉暂存文件」）。
+      // 之前这里只改状态，文件一直留在 public/pending/ 里慢慢积垃圾。
+      // best-effort：删除失败不影响驳回结果（状态已经落下去了）。
+      const imgs = JSON.parse(pending.images) as { url: string }[];
+      for (const img of imgs) {
+        const abs = await resolvePendingFile(img.url);
+        if (abs) {
+          try {
+            await rm(abs, { force: true });
+          } catch (e) {
+            console.error(`[驳回清理] 删除失败：${img.url}`, e);
+          }
+        }
+      }
+
       return NextResponse.json({ data: updated });
     }
 
@@ -154,7 +183,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const finalIds: Record<string, number[]> = {};
     for (const f of FACETS) {
       const ids = [...(selected[f.key] ?? []), ...(createdValues[f.key] ?? [])];
-      finalIds[f.key] = ids.length ? [...new Set(ids)] : [await getOrCreateValue(f.model, OTHER)];
+      const merged = ids.length ? [...new Set(ids)] : [await getOrCreateOther(prisma, f.model)];
+      // 「其它」与同维具体值互斥（design.md §2.4）—— 提交端可能带着旧数据里
+      // 「其它 + 苗族」这种组合进来，这里兜底去掉「其它」
+      finalIds[f.key] = await dropOtherIfHasConcrete(prisma, f.model, merged);
     }
 
     // ⑤ 校验 + 搬图片。

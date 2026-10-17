@@ -67,6 +67,15 @@ export const FACETS = [
 
 export type FacetKey = (typeof FACETS)[number]["key"];
 
+/**
+ * 每个查找表里都真实存在的那一行 —— **语义是「未分类」**（design.md §2.4）。
+ *
+ * 由此推出一条不变量：**它和同维度的任何具体值互斥**。
+ * 选了「苗族」，「其它」就为假 —— 因为"未分类"不再成立。
+ * 强制这条规则的地方见 `dropOtherIfHasConcrete()`。
+ */
+export const OTHER_VALUE = "其它";
+
 export const FACET_KEYS = FACETS.map((f) => f.key) as readonly FacetKey[];
 
 /** 把 "1,2,3" 或 ["1","2"] 解析成正整数数组，去重、剔除非法值 */

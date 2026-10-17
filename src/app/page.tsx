@@ -41,7 +41,9 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
 
   const [result, groups] = await Promise.all([
     listPatterns(sp, { pageSizeDefault: PAGE_SIZE }),
-    listFacets(),
+    // 把已选值传进去：如果某个值已被停用但仍在筛选中（用户是从详情页 chip 点进来的），
+    // 侧边栏必须带上它 —— 否则「已选条件」里只会显示一个裸 id
+    listFacets({ includeIds: selected }),
   ]);
 
   // 名字查表，给"已选条件"标签用

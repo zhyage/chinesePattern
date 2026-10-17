@@ -301,6 +301,67 @@ describe("PATCH /api/admin/pending/[id] —— 审核", () => {
     await prisma.pending.delete({ where: { id: dirty.id } });
   });
 
+  it("★ 提交「2 位图 + 1 矢量」→ 400（以前能提交成功，但永远过不了审）", async () => {
+    // 提交端和审核端以前是两条规则：提交只要求"至少各一张"，
+    // 审核要求"恰好各一张" —— 于是提交能顺利入库，却卡死在审核，
+    // 而且报错说的是"必须恰好有一张位图"，提交者根本不知道问题出在哪
+    const { status, body } = await postJson(`${BASE}/admin/pending`, {
+      name: "多图提交",
+      images: [
+        { url: putPendingFile("m1.png"), type: "bitmap" },
+        { url: putPendingFile("m2.png"), type: "bitmap" },
+        { url: putPendingFile("m3.svg"), type: "vector" },
+      ],
+    });
+    expect(status).toBe(400);
+    expect(body.error).toContain("恰好");
+  });
+
+  it("★ 驳回会清掉暂存文件（design.md §5.4）", async () => {
+    const id = await makePending({});
+    const before = pending().length;
+
+    const { status } = await review(id, { action: "reject", note: "不合格" });
+    expect(status).toBe(200);
+    expect(pending().length, "驳回后暂存文件应被清掉").toBe(before - 2);
+  });
+
+  it("★ 建议值命中**已停用**的行 → 通过后被重新启用，且不建重复行", async () => {
+    const deactivated = await prisma.motif.create({ data: { name: "停用中的母题", active: false } });
+
+    const id = await makePending({
+      facets: { motif: [motifYunlei] },
+      suggestedFacets: { motif: ["停用中的母题"] },
+    });
+    const { status, body } = await review(id, { action: "approve" });
+    expect(status).toBe(200);
+
+    expect(await prisma.motif.count({ where: { name: "停用中的母题" } }), "应复用而不是新建").toBe(1);
+    expect(
+      (await prisma.motif.findUnique({ where: { id: deactivated.id } }))!.active,
+      "复用了停用行却不启用，条目会挂一个前台看不到的值",
+    ).toBe(true);
+
+    await prisma.pattern.delete({ where: { id: body.data.patternId } });
+    await prisma.motif.delete({ where: { id: deactivated.id } });
+  });
+
+  it("★ 「其它」与具体值互斥 —— 提交里带着两个，通过后只留具体值", async () => {
+    const other = await prisma.ethnicGroup.findUnique({ where: { name: "其它" } });
+    const miao = await prisma.ethnicGroup.findUnique({ where: { name: "苗族" } });
+
+    const id = await makePending({ facets: { ethnicGroup: [other!.id, miao!.id] } });
+    const { body } = await review(id, { action: "approve" });
+
+    const p = await prisma.pattern.findUnique({
+      where: { id: body.data.patternId },
+      include: { ethnicGroups: true },
+    });
+    expect(p!.ethnicGroups.map((l) => l.ethnicGroupId)).toEqual([miao!.id]);
+
+    await prisma.pattern.delete({ where: { id: body.data.patternId } });
+  });
+
   it("★ 脏记录只有一张图 → 同样被挡（位图与矢量图都必填）", async () => {
     const dirty = await prisma.pending.create({
       data: {
